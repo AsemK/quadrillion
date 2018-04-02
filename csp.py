@@ -1,14 +1,45 @@
 class CSP:
+    """
+    A simple abstract class for constraint satisfaction problems
+    """
     def get_variables(self):
+        """
+        :return: a list of variables
+        """
         pass
 
     def get_domains(self):
+        """
+        :return: a dictionary containing all possible values that each variable
+        can be assigned
+        """
         pass
 
     def set_current_assignments(self, assignments):
+        """
+        fix the input assignment of variable
+        :param assignments: a dictionary containing variable(s) and the corresponding
+        valid assignment(s)
+
+        The input assignments should be valid (included in the domains of the variable)
+        AND consistent (assignments don't contradict any of the constraints)
+        The function is NOT required to check for that.
+        """
         pass
 
     def is_consistent_assignment(self, assignment):
+        """
+        This method is the way of adding constraints to the problem. It determines if
+        the input assignment is consistent with ather set assignments or not.
+        If no assignment(s) set before (set_current_assignments was not called before),
+        then the function will return true for any variable assigned one of the values in
+        its domain. Otherwise the function will return true only if the new assignment
+        doesn't violate any of the constraints due to the other set variables.
+        :param assignment: a single tuple containing (variable, assignment)
+        The input variable MUST NOT be one of the variables set when calling
+        set_current_assignments.
+        :return: a boolean
+        """
         pass
 
 
