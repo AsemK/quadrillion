@@ -35,26 +35,6 @@ def rotated(pos_set, rotation, height=0, width=0):
     return {(pos[0]+offset_v, pos[1]+offset_h) for pos in new_set}
 
 
-def unique_configs(pos_set):
-    configs = [0]
-    shapes = [pos_set]
-    for config in range(1,8):
-        config_shape = rotated(pos_set, config)
-        if not sum([shape == config_shape for shape in shapes]):
-            configs.append(config)
-            shapes.append(config_shape)
-    return dict(zip(configs, shapes))
-
-
-def list2array(pos_set, default=False):
-    height = max(pos[0] for pos in pos_set) + 1
-    width  = max(pos[1] for pos in pos_set) + 1
-    shape  = [[int(default) for i in range(width)] for j in range(height)]
-    for pos in pos_set:
-        shape[pos[0]][pos[1]] = int(not default)
-    return shape
-
-
 def is_connected(pos_set):
     closed = set()
     set_len = len(pos_set)
@@ -105,25 +85,10 @@ class DotSet:
         self.flp = 0
         self.rot = 0
 
-    def get(self):
-        return self.get_at_config(self.loc, self.flp, self.rot)
-
-    def flip(self):
-        self.flip = (self.flip + 1) % 2
-        return self.get()
-
-    def rotate(self, rot):
-        self.rot = (self.rot + rot) % 4
-        return self.get()
-
-    def get_at_config(self, loc, flp, rot):
-        return {(dot[0] + loc[0], dot[1] + loc[1]) for dot
-                in self.rotated(self.flipped(self.dot_set, flp), rot)}
-
-    def flipped(self, dot_set, flp):
+    def flipped(self, flp):
         if flp % 2 == 0:
-            return dot_set.copy()
-        return {(self.height - dot[0], dot[1]) for dot in dot_set}
+            return self.dot_set.copy()
+        return {(self.height - dot[0], dot[1]) for dot in self.dot_set}
 
     def rotated(self, dot_set, rot):
         if rot % 4 == 0:
@@ -143,8 +108,63 @@ class DotSet:
         shapes = []
         for flp in [0, 1]:
             for rot in range(0, 4):
-                config_shape = self.rotated(self.flipped(self.dot_set, flp), rot)
+                config_shape = self.rotated(self.flipped(flp), rot)
                 if not sum(shape == config_shape for shape in shapes):
                     configs.append((flp, rot))
                     shapes.append(config_shape)
         return dict(zip(configs, shapes))
+
+    def set_config(self, loc, flp, rot):
+        self.loc = loc
+        self.flp = flp
+        self.rot = rot
+
+    def get_at_config(self, loc, flp, rot):
+        return {(dot[0] + loc[0], dot[1] + loc[1]) for dot
+                in self.rotated(self.flipped(flp), rot)}
+
+    def get(self):
+        return self.get_at_config(self.loc, self.flp, self.rot)
+
+    def get_config(self):
+        return self.loc, self.flp, self.rot
+
+    def flip(self):
+        self.flp = (self.flp + 1) % 2
+        return self.get()
+
+    def rotate(self, rot):
+        self.rot = (self.rot + rot) % 4
+        return self.get()
+
+    def move(self, displacement):
+        self.loc[0] += displacement[0]; self.loc[1] += displacement[1]
+        return self.get()
+
+    def is_on(self, loc):
+        return loc in self.get()
+
+
+class SquareDottedGrid(DotSet):
+    def __init__(self, black_dots, wight_dots, height=4, width=4):
+        self.black_dots = set(black_dots)
+        self.wight_dots = set(wight_dots)
+        self.height = height
+        self.width = width
+
+        self.loc = (0, 0)
+        self.flp = 0
+        self.rot = 0
+
+    def flipped(self, flp):
+        if flp % 2 == 0:
+            return self.black_dots.copy()
+        return self.wight_dots.copy()
+
+    def is_on(self, loc):
+        return (0 <= loc[0] - self.loc[0] < self.height) \
+               and (0 <= loc[1] - self.loc[1] < self.width)
+
+    def total_dots(self, config):
+        return {(i, j) for i in range(c[0][0], self.loc[0] + self.height)
+                for j in range(self.loc[1], self.loc[1] + self.width)}

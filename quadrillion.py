@@ -1,7 +1,7 @@
 from csp import CSP, CSPSolver
 from graphic_display import QuadrillionGraphicDisplay
 import util
-from util import DotSet
+from util import DotSet, SquareDottedGrid
 import time
 
 SHAPES = {'s<': DotSet({(0,0),(0,1),(1,0)}),             's2': DotSet({(0,0),(0,1),(1,1),(1,2)}),
@@ -11,11 +11,17 @@ SHAPES = {'s<': DotSet({(0,0),(0,1),(1,0)}),             's2': DotSet({(0,0),(0,
           'sF': DotSet({(0,0),(0,1),(1,1),(1,2),(2,1)}), 'sL': DotSet({(0,0),(0,1),(0,2),(0,3),(1,0)}),
           's1': DotSet({(0,0),(0,1),(0,2),(0,3),(1,1)}), 's9': DotSet({(0,0),(0,1),(0,2),(1,2),(1,3)})}
 
-GRIDS = {'g1': [{(0,1)}, {(3,1)}],             'g2': [{(0,1),(0,2)}, {(0,3),(2,2)}],
-         'g3': [{(0,0),(0,3)}, {(0,0),(2,0)}], 'g4': [{(0,0),(3,2)}, {(1,2),(3,3)}]}
+GRIDS = {'g1': [{(0,1)}, {(3,1)}],
+         'g2': [{(0,1),(0,2)}, {(0,3),(2,2)}],
+         'g3': [{(0,0),(0,3)}, {(0,0),(2,0)}],
+         'g4': [{(0,0),(3,2)}, {(1,2),(3,3)}]}
 
 
 class QuadrillionCSP(CSP):
+    """
+    A straightforward modelling of the game as a CSP. Look at the documentation of
+    the CSP class for more information.
+    """
     def __init__(self, possible_locs=[(i, j) for i in range(8) for j in range(8)],
                  board_dots={(0,7),(1,3),(1,5),(3,3),(5,0),(6,0),(7,6)},
                  shapes=list(SHAPES.keys())):
@@ -28,48 +34,49 @@ class QuadrillionCSP(CSP):
         return self.shapes
 
     def get_domains(self):
+        """
+        an assignment of a shape is the locations of its dots.
+        """
         domains = dict()
         for shape in self.get_variables():
             domains[shape] = []
             for loc in self.possible_locs:
-                for flip, rot in list(SHAPES[shape].get_unique_orients().keys()):
-                    assignment = SHAPES[shape].get_at_config(loc, flip, rot)
+                for flp, rot in list(SHAPES[shape].get_unique_orients().keys()):
+                    assignment = SHAPES[shape].get_at_config(loc, flp, rot)
                     if assignment <= set(self.possible_locs) and \
                        self.is_consistent_assignment((shape, assignment)):
                         domains[shape].append(assignment)
         return domains
 
     def set_current_assignments(self, assignments):
+        """
+        Fills the board with the input assignments of shapes.
+        """
         self.current_board = self.board_dots.copy()
         for shape, config in assignments.items():
             self.current_board |= config
 
     def is_consistent_assignment(self, assignment):
+        """
+        checks if the input assignment is consistent with the current board.
+        Also checks if the resultant board after adding the assignment is logical.
+        """
         return not assignment[1] & self.current_board\
                 and util.is_connected(set(self.possible_locs) - self.current_board - assignment[1])
 
 
 
 class Quadrillion:
+    """
+    Game controller
+    """
     def __init__(self,
                  initial_grids_configs={'g1': ((1, 4), 0, 0), 'g2': ((1, 8), 0, 0),
                                         'g3': ((5, 4), 0, 0), 'g4': ((5, 8), 0, 0)},
                  initial_assignment=dict()):
         # grid config is a tuple (loc, side, rotation)
-        self.grids_configs = initial_grids_configs
+        self.initial_grids_configs = initial_grids_configs
         self.initial_assignments = initial_assignment
-
-    @staticmethod
-    def set_grid_loc(config, loc):
-        return loc, config[1], config[2]
-
-    @staticmethod
-    def set_grid_side(config, side):
-        return config[0], side%2, config[2]
-
-    @staticmethod
-    def set_grid_rotation(config, rotation):
-        return config[0], config[1], rotation%4
 
     @staticmethod
     def calc_onboard_locs(grids_configs):
@@ -120,7 +127,7 @@ class Quadrillion:
         return self.initial_assignments
 
     def get_grids_configs(self):
-        return self.grids_configs
+        return self.initial_grids_configs
 
     def get_search_time(self):
         return self.search_time
