@@ -43,7 +43,7 @@ def unique_configs(pos_set):
         if not sum([shape == config_shape for shape in shapes]):
             configs.append(config)
             shapes.append(config_shape)
-    return zip(configs, shapes)
+    return dict(zip(configs, shapes))
 
 
 def list2array(pos_set, default=False):
@@ -90,3 +90,61 @@ def valid_pos_set_component(set_len, connected):
         return True
     else:
         return False
+
+
+class DotSet:
+    def __init__(self, dots):
+        for dot in dots:
+            assert(type(dot) is tuple and len(dot) == 2)
+
+        self.dot_set = set(dots)
+        self.height = max(pos[0] for pos in dots)
+        self.width = max(pos[1] for pos in dots)
+
+        self.loc = (0, 0)
+        self.flp = 0
+        self.rot = 0
+
+    def get(self):
+        return self.get_at_config(self.loc, self.flp, self.rot)
+
+    def flip(self):
+        self.flip = (self.flip + 1) % 2
+        return self.get()
+
+    def rotate(self, rot):
+        self.rot = (self.rot + rot) % 4
+        return self.get()
+
+    def get_at_config(self, loc, flp, rot):
+        return {(dot[0] + loc[0], dot[1] + loc[1]) for dot
+                in self.rotated(self.flipped(self.dot_set, flp), rot)}
+
+    def flipped(self, dot_set, flp):
+        if flp % 2 == 0:
+            return dot_set.copy()
+        return {(self.height - dot[0], dot[1]) for dot in dot_set}
+
+    def rotated(self, dot_set, rot):
+        if rot % 4 == 0:
+            return dot_set.copy()
+        if rot % 4 == 1:
+            new_set = {(pos[1], pos[0]) for pos in dot_set}
+            return {(self.width - pos[0], pos[1]) for pos in new_set}
+        elif rot % 4 == 2:
+            new_set = {(self.height - pos[0], pos[1]) for pos in dot_set}
+            return {(pos[0], self.width - pos[1]) for pos in new_set}
+        elif rot % 4 == 3:
+            new_set = {(pos[1], pos[0]) for pos in dot_set}
+            return {(pos[0], self.height - pos[1]) for pos in new_set}
+
+    def get_unique_orients(self):
+        configs = []
+        shapes = []
+        for flp in [0, 1]:
+            for rot in range(0, 4):
+                config_shape = self.rotated(self.flipped(self.dot_set, flp), rot)
+                if not sum(shape == config_shape for shape in shapes):
+                    configs.append((flp, rot))
+                    shapes.append(config_shape)
+        return dict(zip(configs, shapes))

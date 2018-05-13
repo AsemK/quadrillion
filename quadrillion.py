@@ -1,15 +1,15 @@
 from csp import CSP, CSPSolver
 from graphic_display import QuadrillionGraphicDisplay
 import util
+from util import DotSet
 import time
 
-SHAPES = {'s<': {(0,0),(0,1),(1,0)},             's2': {(0,0),(0,1),(1,1),(1,2)},
-          'sb': {(0,0),(0,1),(0,2),(1,0),(1,1)}, 'sU': {(0,0),(0,1),(0,2),(1,0),(1,2)},
-          'sT': {(0,0),(0,1),(0,2),(1,1),(2,1)}, 'sC': {(0,0),(1,0),(2,0),(2,1),(2,2)},
-          's/': {(0,0),(1,0),(1,1),(2,1),(2,2)}, 'sZ': {(0,0),(0,1),(1,1),(2,1),(2,2)},
-          'sF': {(0,0),(0,1),(1,1),(1,2),(2,1)}, 'sL': {(0,0),(0,1),(0,2),(0,3),(1,0)},
-          's1': {(0,0),(0,1),(0,2),(0,3),(1,1)}, 's9': {(0,0),(0,1),(0,2),(1,2),(1,3)}}
-ALL_SHAPES = {shape: dict(util.unique_configs(pos_set)) for shape, pos_set in SHAPES.items()}
+SHAPES = {'s<': DotSet({(0,0),(0,1),(1,0)}),             's2': DotSet({(0,0),(0,1),(1,1),(1,2)}),
+          'sb': DotSet({(0,0),(0,1),(0,2),(1,0),(1,1)}), 'sU': DotSet({(0,0),(0,1),(0,2),(1,0),(1,2)}),
+          'sT': DotSet({(0,0),(0,1),(0,2),(1,1),(2,1)}), 'sC': DotSet({(0,0),(1,0),(2,0),(2,1),(2,2)}),
+          's/': DotSet({(0,0),(1,0),(1,1),(2,1),(2,2)}), 'sZ': DotSet({(0,0),(0,1),(1,1),(2,1),(2,2)}),
+          'sF': DotSet({(0,0),(0,1),(1,1),(1,2),(2,1)}), 'sL': DotSet({(0,0),(0,1),(0,2),(0,3),(1,0)}),
+          's1': DotSet({(0,0),(0,1),(0,2),(0,3),(1,1)}), 's9': DotSet({(0,0),(0,1),(0,2),(1,2),(1,3)})}
 
 GRIDS = {'g1': [{(0,1)}, {(3,1)}],             'g2': [{(0,1),(0,2)}, {(0,3),(2,2)}],
          'g3': [{(0,0),(0,3)}, {(0,0),(2,0)}], 'g4': [{(0,0),(3,2)}, {(1,2),(3,3)}]}
@@ -18,75 +18,50 @@ GRIDS = {'g1': [{(0,1)}, {(3,1)}],             'g2': [{(0,1),(0,2)}, {(0,3),(2,2
 class QuadrillionCSP(CSP):
     def __init__(self, possible_locs=[(i, j) for i in range(8) for j in range(8)],
                  board_dots={(0,7),(1,3),(1,5),(3,3),(5,0),(6,0),(7,6)},
-                 shapes=list(SHAPES.keys())):
+                 shapes=list(SHAPES.keys()), compact=False):
         self.board_dots = board_dots
+        self.current_board = self.board_dots.copy()
         self.possible_locs = possible_locs
         self.shapes = shapes
+
+        if compact:
+            self.convert_assignment = lambda shape, config: SHAPES[shape].get_at_config(*config)
+            self.get_assignment = lambda shape, config: config
+        else:
+            self.convert_assignment = lambda shape, config: config
+            self.get_assignment = lambda shape, config: SHAPES[shape].get_at_config(*config)
 
     def get_variables(self):
         return self.shapes
 
-    @staticmethod
-    def get_possible_orients(shape):
-        return list(ALL_SHAPES[shape].keys())
-
-    @staticmethod
-    def get_shape_at_config(shape, config):
-        loc, orient = config
-        return {(pos[0] + loc[0], pos[1] + loc[1]) for pos in ALL_SHAPES[shape][orient]}
-
-    def is_valid_assignment(self, shape, config):
-        return not config & self.board_dots and config <= set(self.possible_locs)\
-               and util.is_connected(set(self.possible_locs) - self.board_dots - config)
+    def is_valid_assignment(self, shape, assignment):
+        return self.convert_assignment(shape, assignment) <= set(self.possible_locs) \
+               and self.is_consistent_assignment((shape, assignment))
 
     def get_domains(self):
-        valid_configs = dict()
+        domains = dict()
         for shape in self.get_variables():
-            valid_configs[shape] = []
+            domains[shape] = []
             for loc in self.possible_locs:
-                for orient in self.get_possible_orients(shape):
-                    config = self.get_shape_at_config(shape, (loc, orient))
-                    if self.is_valid_assignment(shape, config):
-                        valid_configs[shape].append(config)
-        return valid_configs
+                for flip, rot in list(SHAPES[shape].get_unique_orients().keys()):
+                    assignment = self.get_assignment(shape, (loc, flip, rot))
+                    if self.is_valid_assignment(shape, assignment):
+                        domains[shape].append(assignment)
+        return domains
 
     def set_current_assignments(self, assignments):
+        assignments = self.convert_assignments(assignments)
         self.current_board = self.board_dots.copy()
         for shape, config in assignments.items():
             self.current_board |= config
 
     def is_consistent_assignment(self, assignment):
+        assignment = (assignment[0], self.convert_assignment(*assignment))
         return not assignment[1] & self.current_board\
                 and util.is_connected(set(self.possible_locs) - self.current_board - assignment[1])
 
-
-class QuadrillionCompactCSP(QuadrillionCSP):
-    def __init__(self, possible_locs=[(i, j) for i in range(8) for j in range(8)],
-                 board_dots={(0, 7), (1, 3), (1, 5), (3, 3), (5, 0), (6, 0), (7, 6)},
-                 shapes=list(SHAPES.keys())):
-        QuadrillionCSP.__init__(self, possible_locs, board_dots, shapes)
-
-    def is_valid_assignment(self, shape, config):
-        return QuadrillionCSP.is_valid_assignment(self, shape, self.get_shape_at_config(shape, config))
-
-    def get_domains(self):
-        valid_configs = dict()
-        for shape in self.get_variables():
-            valid_configs[shape] = []
-            for loc in self.possible_locs:
-                for orient in self.get_possible_orients(shape):
-                    if self.is_valid_assignment(shape, (loc, orient)):
-                        valid_configs[shape].append((loc, orient))
-        return valid_configs
-
-    def set_current_assignments(self, assignments):
-        QuadrillionCSP.set_current_assignments(self, self.convert_assignments(assignments))
-
-    def is_consistent_assignment(self, assignment):
-        return QuadrillionCSP.is_consistent_assignment(self, (assignment[0], self.get_shape_at_config(*assignment)))
-
     def convert_assignments(self, assignments):
-        return dict([(shape, self.get_shape_at_config(shape, config))
+        return dict([(shape, self.convert_assignment(shape, config))
                      for shape, config in assignments.items()])
 
 
@@ -171,10 +146,11 @@ class Quadrillion:
     def get_solution(self, grids_configs, assignments):
         shapes = list(set(SHAPES.keys()) - set(assignments.keys()))
         quadrillion_csp = QuadrillionCSP(self.calc_possible_locs(grids_configs),
-                                         self.calc_board_dots(grids_configs, assignments), shapes)
+                                         self.calc_board_dots(grids_configs, assignments),
+                                         shapes)
         start_time = time.process_time()
         solver = CSPSolver(quadrillion_csp)
-        solution = solver.get_solution()
+        solution = quadrillion_csp.convert_assignments(solver.get_solution())
         self.search_time = time.process_time() - start_time
         self.search_iterations = solver.get_search_iterations()
         return solution
