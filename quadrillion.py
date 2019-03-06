@@ -1,187 +1,138 @@
-from csp import CSP, CSPSolver
-from graphic_display import QuadrillionGraphicDisplay
-import util
-from util import DotSet, SquareDottedGrid
-import time
+from dot_set import DotShape, DotGrid
+from graphic_display_new import QuadrillionGraphicDisplay
 
-SHAPES = {'s<': DotSet({(0,0),(0,1),(1,0)}),             's2': DotSet({(0,0),(0,1),(1,1),(1,2)}),
-          'sb': DotSet({(0,0),(0,1),(0,2),(1,0),(1,1)}), 'sU': DotSet({(0,0),(0,1),(0,2),(1,0),(1,2)}),
-          'sT': DotSet({(0,0),(0,1),(0,2),(1,1),(2,1)}), 'sC': DotSet({(0,0),(1,0),(2,0),(2,1),(2,2)}),
-          's/': DotSet({(0,0),(1,0),(1,1),(2,1),(2,2)}), 'sZ': DotSet({(0,0),(0,1),(1,1),(2,1),(2,2)}),
-          'sF': DotSet({(0,0),(0,1),(1,1),(1,2),(2,1)}), 'sL': DotSet({(0,0),(0,1),(0,2),(0,3),(1,0)}),
-          's1': DotSet({(0,0),(0,1),(0,2),(0,3),(1,1)}), 's9': DotSet({(0,0),(0,1),(0,2),(1,2),(1,3)})}
+SHAPES = {'s<': ({(0,0),(0,1),(1,0)},             (0, 1, (12, 14)), '#91D8F7'),
+          's2': ({(0,0),(0,1),(1,1),(1,2)},       (0, 0, (12, 8)),  '#B93A3F'),
+          'sb': ({(0,0),(0,1),(0,2),(1,0),(1,1)}, (1, 0, (12, 11)), '#80CCC0'),
+          'sU': ({(0,0),(0,1),(0,2),(1,0),(1,2)}, (0, 3, (10, 1)),  '#90C74B'),
+          'sT': ({(0,0),(0,1),(0,2),(1,1),(2,1)}, (0, 1, (10, 6)),  '#009D6F'),
+          'sC': ({(0,0),(1,0),(2,0),(2,1),(2,2)}, (0, 2, (10, 13)), '#00AFEE'),
+          's/': ({(0,0),(1,0),(1,1),(2,1),(2,2)}, (0, 2, (10, 8)),  '#853B93'),
+          'sZ': ({(0,0),(0,1),(1,1),(2,1),(2,2)}, (1, 1, (10, 11)), '#2A57A4'),
+          'sF': ({(0,0),(0,1),(1,1),(1,2),(2,1)}, (0, 1, (10, 3)),  '#F79734'),
+          'sL': ({(0,0),(0,1),(0,2),(0,3),(1,0)}, (0, 1, (10, 0)),  '#ED3338'),
+          's1': ({(0,0),(0,1),(0,2),(0,3),(1,1)}, (0, 2, (12, 5)),  '#FFDD23'),
+          's9': ({(0,0),(0,1),(0,2),(1,2),(1,3)}, (1, 0, (12, 2)),  '#F078AD')}
 
-GRIDS = {'g1': [{(0,1)}, {(3,1)}],
-         'g2': [{(0,1),(0,2)}, {(0,3),(2,2)}],
-         'g3': [{(0,0),(0,3)}, {(0,0),(2,0)}],
-         'g4': [{(0,0),(3,2)}, {(1,2),(3,3)}]}
+GRIDS = {'g1': (({(0,1)}, {(3,1)}),             (0, 0, (1, 4))),
+         'g2': (({(0,1),(0,2)}, {(0,3),(2,2)}), (0, 0, (1, 8))),
+         'g3': (({(0,0),(0,3)}, {(0,0),(2,0)}), (0, 0, (5, 4))),
+         'g4': (({(0,0),(3,2)}, {(1,2),(3,3)}), (0, 0, (5, 8)))}
 
-
-class QuadrillionCSP(CSP):
-    """
-    A straightforward modelling of the game as a CSP. Look at the documentation of
-    the CSP class for more information.
-    """
-    def __init__(self, possible_locs=[(i, j) for i in range(8) for j in range(8)],
-                 board_dots={(0,7),(1,3),(1,5),(3,3),(5,0),(6,0),(7,6)},
-                 shapes=list(SHAPES.keys())):
-        self.board_dots = board_dots
-        self.current_board = self.board_dots.copy()
-        self.possible_locs = possible_locs
-        self.shapes = shapes
-
-    def get_variables(self):
-        return self.shapes
-
-    def get_domains(self):
-        """
-        an assignment of a shape is the locations of its dots.
-        """
-        domains = dict()
-        for shape in self.get_variables():
-            domains[shape] = []
-            for loc in self.possible_locs:
-                for flp, rot in list(SHAPES[shape].get_unique_orients().keys()):
-                    assignment = SHAPES[shape].get_at_config(loc, flp, rot)
-                    if assignment <= set(self.possible_locs) and \
-                       self.is_consistent_assignment((shape, assignment)):
-                        domains[shape].append(assignment)
-        return domains
-
-    def set_current_assignments(self, assignments):
-        """
-        Fills the board with the input assignments of shapes.
-        """
-        self.current_board = self.board_dots.copy()
-        for shape, config in assignments.items():
-            self.current_board |= config
-
-    def is_consistent_assignment(self, assignment):
-        """
-        checks if the input assignment is consistent with the current board.
-        Also checks if the resultant board after adding the assignment is logical.
-        """
-        return not assignment[1] & self.current_board\
-                and util.is_connected(set(self.possible_locs) - self.current_board - assignment[1])
-
+DOT_SPACE_DIM = (14, 16)
 
 
 class Quadrillion:
-    """
-    Game controller
-    """
-    def __init__(self,
-                 initial_grids_configs={'g1': ((1, 4), 0, 0), 'g2': ((1, 8), 0, 0),
-                                        'g3': ((5, 4), 0, 0), 'g4': ((5, 8), 0, 0)},
-                 initial_assignment=dict()):
-        # grid config is a tuple (loc, side, rotation)
-        self.initial_grids_configs = initial_grids_configs
-        self.initial_assignments = initial_assignment
+    def __init__(self, dot_space_dim=DOT_SPACE_DIM, initial_configs=None):
+        self.dot_space_dim = dot_space_dim
+        self.shapes = dict()
+        self.grids = dict()
+        self.views = []
+        if initial_configs is None: initial_configs = dict()
 
-    @staticmethod
-    def calc_onboard_locs(grids_configs):
-        onboard_locs = []
-        for grid, config in grids_configs.items():
-            onboard_locs += [(i, j) for i in range(config[0][0], config[0][0] + 4)
-                              for j in range(config[0][1], config[0][1] + 4)]
-        return onboard_locs
+        for grid in GRIDS:
+            if grid in initial_configs:
+                config = initial_configs[grid]
+            else:
+                config = GRIDS[grid][1]
+            self.grids[grid] = DotGrid(*GRIDS[grid][0], *config)
 
-    @staticmethod
-    def calc_possible_locs(grids_configs):
-        height = max(config[0][0] for config in grids_configs.values()) + 4
-        width = max(config[0][1] for config in grids_configs.values()) + 4
-        return [(i, j) for i in range(height) for j in range(width)]
+        for shape in SHAPES:
+            if shape in initial_configs:
+                config = initial_configs[shape]
+            else:
+                config = SHAPES[shape][1]
+            self.shapes[shape] = DotShape(SHAPES[shape][0], *config, SHAPES[shape][2])
 
-    def calc_board_dots(self, grids_configs, assignments):
-        board_dots = set()
-        for grid, config in grids_configs.items():
-            board_dots |= self.get_grid_dots(grid, config)
-        for shape, pos_set in assignments.items():
-            board_dots |= pos_set
-        board_dots |= set(self.calc_possible_locs(grids_configs))-set(self.calc_onboard_locs(grids_configs))
-        return board_dots
+        self.reset()
 
-    @staticmethod
-    def get_grid_dots(grid, config):
-        return {(pos[0] + config[0][0], pos[1] + config[0][1])
-                for pos in util.rotated(GRIDS[grid][config[1]], config[2], 4, 4)}
+    def reset(self):
+        self.picked = None
+        self.is_shape_picked = False
+        self.grids_locs = dict()
+        self.shapes_locs = dict()
 
-    def move_grid(self, config, displacement):
-        return self.set_grid_loc(config, (config[0][0]+displacement[0], config[0][1]+displacement[1]))
+        for grid_id, grid in self.grids.items():
+            grid.reset()
+            released = self._release_grid(grid_id)
+            assert released
+        for shape_id, shape in self.shapes.items():
+            shape.reset()
+            released = self._release_shape(shape_id)
+            assert released
 
-    def rotate_grid(self, config, rotation):
-        return self.set_grid_rotation(config, config[2]+rotation)
-
-    def flip_grid(self, config):
-        return self.set_grid_side(config, config[1]+1)
-
-    @staticmethod
-    def rotate_shape(pos_set, rotation):
-        return util.rotated(pos_set, rotation%4)
-
-    @staticmethod
-    def flip_shape(pos_set):
-        return util.rotated(pos_set, 4)
-
-    def get_initial_assignments(self):
-        return self.initial_assignments
-
-    def get_grids_configs(self):
-        return self.initial_grids_configs
-
-    def get_search_time(self):
-        return self.search_time
-
-    def get_search_iterations(self):
-        return self.search_iterations
-
-    def get_solution(self, grids_configs, assignments):
-        shapes = list(set(SHAPES.keys()) - set(assignments.keys()))
-        quadrillion_csp = QuadrillionCSP(self.calc_possible_locs(grids_configs),
-                                         self.calc_board_dots(grids_configs, assignments),
-                                         shapes)
-        start_time = time.process_time()
-        solver = CSPSolver(quadrillion_csp)
-        solution = solver.get_solution()
-        self.search_time = time.process_time() - start_time
-        self.search_iterations = solver.get_search_iterations()
-        return solution
-
-    @staticmethod
-    def is_on_grid(cell, grids_configs):
-        for grid, config in grids_configs.items():
-            if (0 <= cell[0] - config[0][0] < 4) and (0 <= cell[1] - config[0][1] < 4):
-                return grid
+    def pick(self, loc):
+        if loc in self.shapes_locs:
+            self._pick_shape(self.shapes_locs[loc])
+        elif loc in self.grids_locs:
+            self._pick_grid(self.grids_locs[loc])
+        if self.picked:
+            return self.picked[1]
         return None
 
-    @staticmethod
-    def is_on_shape(cell, assignments):
-        for shape, pos_set in assignments.items():
-            if cell in pos_set:
-                return shape
-        return None
-
-    @staticmethod
-    def is_valid_grid_loc(grid, loc, grids_configs):
-        for grid2, config in grids_configs.items():
-            if grid2 == grid: continue
-            if config[0][0] - 4 < loc[0] < config[0][0] + 4\
-               and config[0][1] - 4 < loc[1] < config[0][1] + 4:
-                return False
-        return True
-
-    def is_valid_shape_loc(self, shape, shape_dots, grids_configs, assignments):
-        if shape in assignments:
-            temp_assignment = assignments.copy()
-            del temp_assignment[shape]
-        else:
-            temp_assignment = assignments
-        if shape_dots <= set(self.calc_possible_locs(grids_configs)):
-            if len(shape_dots & self.calc_board_dots(grids_configs, temp_assignment)) == 0:
-                return True
+    def release(self):
+        if self.picked:
+            if self.is_shape_picked:
+                released = self._release_shape(self.picked[0])
+            else:
+                released = self._release_grid(self.picked[0])
+            if not released:
+                self.picked[1].set_config(*self.picked[2])
+            self.picked = None
+            return released
         return False
+
+    def is_won(self):
+        return self._valid_grid_locs() == set(self.shapes_locs.keys())
+
+    def is_on_board(self, dot_set):
+        return all(0 <= y < self.dot_space_dim[0] and 0 <= x < self.dot_space_dim[1] for (y, x) in dot_set)
+
+    def attach_view(self, view):
+        self.views.append(view)
+
+    def _valid_grid_locs(self):
+        valid = set()
+        for grid in self.grids.values():
+            valid |= grid.get_valid()
+        return valid
+
+    def _release_grid(self, grid_id):
+        released = self.is_on_board(self.grids[grid_id].get()) \
+                   and not any(dot in self.grids_locs.keys() or dot in self.shapes_locs.keys()
+                               for dot in self.grids[grid_id].get())
+        if released:
+            for dot in self.grids[grid_id].get():
+                self.grids_locs[dot] = grid_id
+        return released
+
+    def _release_shape(self, shape_id):
+        valid = self._valid_grid_locs()
+        released = self.is_on_board(self.shapes[shape_id].get()) \
+                   and all(dot in valid and dot not in self.shapes_locs.keys() for dot in self.shapes[shape_id].get())
+        if not self.picked:
+            released = released or not any(dot in self.grids_locs.keys() or dot in self.shapes_locs.keys()
+                                           for dot in self.shapes[shape_id].get())
+        if released:
+            for dot in self.shapes[shape_id].get():
+                self.shapes_locs[dot] = shape_id
+        return released
+
+    def _pick_shape(self, shape_id):
+        self.picked = (shape_id, self.shapes[shape_id], self.shapes[shape_id].get_config())
+        self.is_shape_picked = True
+        for dot in self.shapes[shape_id].get():
+            del self.shapes_locs[dot]
+
+    def _pick_grid(self, grid_id):
+        if not any(dot in self.shapes_locs.keys() for dot in self.grids[grid_id].get()):
+            self.picked = (grid_id, self.grids[grid_id], self.grids[grid_id].get_config())
+            self.is_shape_picked = False
+            for dot in self.grids[grid_id].get():
+                del self.grids_locs[dot]
 
 
 if __name__ == '__main__':
-    game = Quadrillion()
-    display = QuadrillionGraphicDisplay(game)
+    quadrillion = Quadrillion()
+    view = QuadrillionGraphicDisplay(quadrillion)
+    quadrillion.attach_view(view)
