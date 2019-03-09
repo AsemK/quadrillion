@@ -1,5 +1,5 @@
 from dot_set import DotShape, DotGrid
-from graphic_display_new import QuadrillionGraphicDisplay
+from graphic_display import QuadrillionGraphicDisplay
 
 SHAPES = {'s<': ({(0,0),(0,1),(1,0)},             (0, 1, (12, 14)), '#91D8F7'),
           's2': ({(0,0),(0,1),(1,1),(1,2)},       (0, 0, (12, 8)),  '#B93A3F'),
@@ -60,14 +60,16 @@ class Quadrillion:
             shape.reset()
             released = self._release_shape(shape_id)
             assert released
+        self.notify(None)
 
     def pick(self, loc):
-        if loc in self.shapes_locs:
-            self._pick_shape(self.shapes_locs[loc])
-        elif loc in self.grids_locs:
-            self._pick_grid(self.grids_locs[loc])
-        if self.picked:
-            return self.picked[1]
+        if self.picked is None:
+            if loc in self.shapes_locs:
+                self._pick_shape(self.shapes_locs[loc])
+            elif loc in self.grids_locs:
+                self._pick_grid(self.grids_locs[loc])
+            if self.picked:
+                return self.picked[1]
         return None
 
     def release(self):
@@ -78,6 +80,11 @@ class Quadrillion:
                 released = self._release_grid(self.picked[0])
             if not released:
                 self.picked[1].set_config(*self.picked[2])
+                if self.is_shape_picked:
+                    self._release_shape(self.picked[0])
+                else:
+                    self._release_grid(self.picked[0])
+                self.notify(self.picked[1])
             self.picked = None
             return released
         return False
@@ -90,6 +97,10 @@ class Quadrillion:
 
     def attach_view(self, view):
         self.views.append(view)
+
+    def notify(self, item):
+        for view in self.views:
+            view.update(item)
 
     def _valid_grid_locs(self):
         valid = set()
