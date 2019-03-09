@@ -96,9 +96,9 @@ class QuadrillionGraphicDisplay:
         self.canvas.grid(rowspan=int(vertical_cells/2), columnspan=int(horizontal_cells/2), padx=2, pady=2)
 
         self.items = dict()
-        for grid in self.quadrillion.grids.values():
+        for grid in self.quadrillion.grids:
             self.items[id(grid)] = GridGraphicDecorator(grid, self.canvas)
-        for shape in self.quadrillion.shapes.values():
+        for shape in self.quadrillion.shapes:
             self.items[id(shape)] = ShapeGraphicDecorator(shape, self.canvas)
 
         self.picked = None

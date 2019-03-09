@@ -22,128 +22,144 @@ GRIDS = {'g1': (({(0,1)}, {(3,1)}),             (0, 0, (1, 4))),
 DOT_SPACE_DIM = (14, 16)
 
 
+class QuadrillionStrategy:
+    def __init__(self, dot_space_dim, colleagues):
+        self._dot_space_dim = dot_space_dim
+        self._colleagues = colleagues
+        self._colleagues_locs = dict()
+
+    def pick(self, loc, other_strategy):
+        if loc in self._colleagues_locs:
+            picked = self._colleagues_locs[loc]
+            if self.is_pickable(picked, other_strategy):
+                for dot in picked.get():
+                    del self._colleagues_locs[dot]
+                return picked
+        return None
+
+    def release(self, colleague, other_strategy):
+        released = self.is_releasable(colleague, other_strategy)
+        if released:
+            for dot in colleague.get():
+                self._colleagues_locs[dot] = colleague
+        return released
+
+    def reset(self, other_strategy):
+        for colleague in self._colleagues:
+            colleague.reset()
+            released = self.release(colleague, other_strategy)
+            assert released
+
+    def is_on_board(self, dot_set):
+        return all(0 <= y < self._dot_space_dim[0] and 0 <= x < self._dot_space_dim[1] for (y, x) in dot_set.get())
+
+    def is_overlapping(self, dot_set):
+        return any(dot in self._colleagues_locs for dot in dot_set.get())
+
+    def is_releasable(self, colleague, other_strategy):
+        pass
+
+    def is_pickable(self, colleague, other_strategy):
+        pass
+
+
+class GridQuadrillionStrategy(QuadrillionStrategy):
+    def is_releasable(self, colleague, shape_strategy):
+        return self.is_on_board(colleague) and not self.is_overlapping(colleague) and not shape_strategy.is_overlapping(colleague)
+
+    def is_pickable(self, colleague, shape_strategy):
+        return not shape_strategy.is_overlapping(colleague)
+
+    def is_on_valid(self, dot_set):
+        valid = self._get_valid_locs()
+        return all(dot in valid for dot in dot_set.get())
+
+    def is_won(self, shape_strategy):
+        for colleage in self._colleagues:
+            shape_strategy.is_overlapping(colleage)
+
+    def _get_valid_locs(self):
+        valid = set(self._colleagues_locs.keys())
+        for grid in self._colleagues:
+            valid -= grid.get_invalid()
+        return valid
+
+
+class ShapeQuadrillionStrategy(QuadrillionStrategy):
+    def is_releasable(self, colleague, grid_strategy):
+        return self.is_on_board(colleague) and not self.is_overlapping(colleague)\
+               and (grid_strategy.is_on_valid(colleague) or not grid_strategy.is_overlapping(colleague))
+
+    def is_pickable(self, colleague, grid_strategy):
+        return True
+
+
 class Quadrillion:
     def __init__(self, dot_space_dim=DOT_SPACE_DIM, initial_configs=None):
         self.dot_space_dim = dot_space_dim
-        self.shapes = dict()
-        self.grids = dict()
+        self.grids = set()
+        self.shapes = set()
         self.views = []
         if initial_configs is None: initial_configs = dict()
 
         for grid in GRIDS:
-            if grid in initial_configs:
-                config = initial_configs[grid]
-            else:
-                config = GRIDS[grid][1]
-            self.grids[grid] = DotGrid(*GRIDS[grid][0], *config)
+            config = initial_configs[grid] if grid in initial_configs else GRIDS[grid][1]
+            self.grids.add(DotGrid(*GRIDS[grid][0], *config))
 
         for shape in SHAPES:
-            if shape in initial_configs:
-                config = initial_configs[shape]
-            else:
-                config = SHAPES[shape][1]
-            self.shapes[shape] = DotShape(SHAPES[shape][0], *config, SHAPES[shape][2])
+            config = initial_configs[shape] if shape in initial_configs else SHAPES[shape][1]
+            self.shapes.add(DotShape(SHAPES[shape][0], *config, SHAPES[shape][2]))
 
         self.reset()
 
     def reset(self):
         self.picked = None
-        self.is_shape_picked = False
-        self.grids_locs = dict()
-        self.shapes_locs = dict()
-
-        for grid_id, grid in self.grids.items():
-            grid.reset()
-            released = self._release_grid(grid_id)
-            assert released
-        for shape_id, shape in self.shapes.items():
-            shape.reset()
-            released = self._release_shape(shape_id)
-            assert released
-        self.notify(None)
+        self.grid_strategy = GridQuadrillionStrategy(self.dot_space_dim, self.grids)
+        self.shape_strategy = ShapeQuadrillionStrategy(self.dot_space_dim, self.shapes)
+        self.grid_strategy.reset(self.shape_strategy)
+        self.shape_strategy.reset(self.grid_strategy)
+        self.notify()
 
     def pick(self, loc):
         if self.picked is None:
-            if loc in self.shapes_locs:
-                self._pick_shape(self.shapes_locs[loc])
-            elif loc in self.grids_locs:
-                self._pick_grid(self.grids_locs[loc])
-            if self.picked:
-                return self.picked[1]
-        return None
+            self.picked = self.grid_strategy.pick(loc, self.shape_strategy)
+            self.current_strategy = self.grid_strategy
+            self.other_strategy = self.shape_strategy
+        if self.picked is None:
+            self.picked = self.shape_strategy.pick(loc, self.grid_strategy)
+            self.current_strategy = self.shape_strategy
+            self.other_strategy = self.grid_strategy
+        if self.picked:
+            self.picked_momento = self.picked.get_config()
+        return self.picked
+
+    def unpick(self):
+        if self.picked:
+            self.picked.set_config(*self.picked_momento)
+            self.current_strategy.release(self.picked, self.other_strategy)
+            self.notify(self.picked)
+            self.picked = None
 
     def release(self):
         if self.picked:
-            if self.is_shape_picked:
-                released = self._release_shape(self.picked[0])
-            else:
-                released = self._release_grid(self.picked[0])
+            released = self.current_strategy.release(self.picked, self.other_strategy)
             if not released:
-                self.picked[1].set_config(*self.picked[2])
-                if self.is_shape_picked:
-                    self._release_shape(self.picked[0])
-                else:
-                    self._release_grid(self.picked[0])
-                self.notify(self.picked[1])
+                self.unpick()
             self.picked = None
             return released
         return False
 
     def is_won(self):
-        return self._valid_grid_locs() == set(self.shapes_locs.keys())
-
-    def is_on_board(self, dot_set):
-        return all(0 <= y < self.dot_space_dim[0] and 0 <= x < self.dot_space_dim[1] for (y, x) in dot_set)
+        return self.grid_strategy.is_won(self.shape_strategy)
 
     def attach_view(self, view):
         self.views.append(view)
 
-    def notify(self, item):
+    def notify(self, item=None):
         for view in self.views:
             view.update(item)
-
-    def _valid_grid_locs(self):
-        valid = set()
-        for grid in self.grids.values():
-            valid |= grid.get_valid()
-        return valid
-
-    def _release_grid(self, grid_id):
-        released = self.is_on_board(self.grids[grid_id].get()) \
-                   and not any(dot in self.grids_locs.keys() or dot in self.shapes_locs.keys()
-                               for dot in self.grids[grid_id].get())
-        if released:
-            for dot in self.grids[grid_id].get():
-                self.grids_locs[dot] = grid_id
-        return released
-
-    def _release_shape(self, shape_id):
-        valid = self._valid_grid_locs()
-        released = self.is_on_board(self.shapes[shape_id].get()) \
-                   and all(dot in valid and dot not in self.shapes_locs.keys() for dot in self.shapes[shape_id].get())
-        if not self.picked:
-            released = released or not any(dot in self.grids_locs.keys() or dot in self.shapes_locs.keys()
-                                           for dot in self.shapes[shape_id].get())
-        if released:
-            for dot in self.shapes[shape_id].get():
-                self.shapes_locs[dot] = shape_id
-        return released
-
-    def _pick_shape(self, shape_id):
-        self.picked = (shape_id, self.shapes[shape_id], self.shapes[shape_id].get_config())
-        self.is_shape_picked = True
-        for dot in self.shapes[shape_id].get():
-            del self.shapes_locs[dot]
-
-    def _pick_grid(self, grid_id):
-        if not any(dot in self.shapes_locs.keys() for dot in self.grids[grid_id].get()):
-            self.picked = (grid_id, self.grids[grid_id], self.grids[grid_id].get_config())
-            self.is_shape_picked = False
-            for dot in self.grids[grid_id].get():
-                del self.grids_locs[dot]
 
 
 if __name__ == '__main__':
     quadrillion = Quadrillion()
     view = QuadrillionGraphicDisplay(quadrillion)
-    quadrillion.attach_view(view)
