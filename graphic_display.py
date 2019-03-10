@@ -102,53 +102,63 @@ class QuadrillionGraphicDisplay:
             self.items[id(shape)] = ShapeGraphicDecorator(shape, self.canvas)
 
         self.picked = None
-        self.canvas.bind("<Button-1>", self.on_cell_clicked)
+        self.canvas.bind("<Button-1>", self._on_cell_clicked)
+        self.canvas.bind("<Key>", self._on_key_press)
 
         tk.mainloop()
 
     def update(self, item=None):
         if item is None:
+            self._release()
             for item in self.items.values():
                 item.draw()
         else:
             self.items[id(item)].draw()
 
-    def on_cell_clicked(self, event):
+    def _pick(self, picked, cell):
+        self.picked = self.items[id(picked)]
+        self.picked.hook(cell)
+        self.canvas.tag_raise(self.picked.tag)
+        self.canvas.focus_set()
+        self.canvas.bind("<Button-3>", self._on_cell_clicked)
+        self.canvas.bind("<Motion>", self._on_mouse_motion)
+
+    def _release(self):
+        self.picked = None
+        self.canvas.unbind("<Button-3>")
+        self.canvas.unbind("<Motion>")
+
+    def _on_cell_clicked(self, event):
         if self.picked is None:
             cell = GraphicUtils.pos2cell(event.x, event.y)
             picked = self.quadrillion.pick(cell)
             if picked:
-                self.picked = self.items[id(picked)]
-                self.picked.hook(cell)
-                self.canvas.tag_raise(self.picked.tag)
-                self.canvas.focus_set()
-                self.canvas.bind("<Key>", self.on_key_press)
-                self.canvas.bind("<Motion>", self.on_mouse_motion)
+                self._pick(picked, cell)
         else:
-            self.quadrillion.release()
-            self.picked = None
-            self.canvas.unbind("<Key>")
-            self.canvas.unbind("<Motion>")
+            if event.num == 1:
+                self.quadrillion.release()
+            else:
+                self.quadrillion.unpick()
+            self._release()
 
-    def on_mouse_motion(self, event):
+    def _on_mouse_motion(self, event):
         current_cell = GraphicUtils.pos2cell(event.x, event.y)
         self.picked.move_to(current_cell)
         self.picked.draw()
 
-    def on_key_press(self, event):
+    def _on_key_press(self, event):
         key = event.keysym
-        if key == 'Left':
-            self.picked.rotate()
-        elif key == 'Right':
-            self.picked.rotate(-1)
-        elif key == 'Up' or key == 'Down':
-            self.picked.flip()
-        elif key == 'w' or key == 'W':
-            self.picked.move((-1, 0))
-        elif key == 'a' or key == 'A':
-            self.picked.move((0, -1))
-        elif key == 's' or key == 'S':
-            self.picked.move((1, 0))
-        elif key == 'd' or key == 'D':
-            self.picked.move((0, 1))
-        self.picked.draw()
+        if key == 'r' or key == 'R':           self.quadrillion.reset();
+        if self.picked:
+            if key == 'Left':                  self.picked.rotate()
+            elif key == 'Right':               self.picked.rotate(-1)
+            elif key == 'Up' or key == 'Down': self.picked.flip()
+            elif key == 'w' or key == 'W':     self.picked.move((-1, 0))
+            elif key == 'a' or key == 'A':     self.picked.move((0, -1))
+            elif key == 's' or key == 'S':     self.picked.move((1, 0))
+            elif key == 'd' or key == 'D':     self.picked.move((0, 1))
+            elif key == 'Return':              self.quadrillion.release(); self._release()
+            elif key == 'Escape':              self.quadrillion.unpick();  self._release()
+            else: return
+            if self.picked:
+                self.picked.draw()
