@@ -41,14 +41,17 @@ class GraphicUtils:
 
 
 class GraphicDecorator:
-    def __init__(self, dot_set, canvas):
-        self._dot_set = dot_set
+    def __init__(self, canvas):
         self._canvas = canvas
-        self.tag = str(id(self._dot_set))+'t'
-        self.draw()
 
     def __getattr__(self, item):
         return getattr(self._dot_set, item)
+    
+    def get_tag(self):
+        return str(id(self._dot_set)) + 't'
+    
+    def set_dot_set(self, dot_set):
+        self._dot_set = dot_set
 
     def draw(self):
         pass
@@ -63,22 +66,22 @@ class GraphicDecorator:
 
 class GridGraphicDecorator(GraphicDecorator):
     def draw(self):
-        self._canvas.delete(self.tag)
+        self._canvas.delete(self.get_tag())
         start_cell = self.get_config()[2]
         end_cell = (start_cell[0] + 3, start_cell[1] + 3)
         valid_color, invalid_color = self.get_color()
-        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.tag)
+        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.get_tag())
         for dot in self.get_valid():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.tag)
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.get_tag())
         for dot in self.get_invalid():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.tag)
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.get_tag())
 
 
 class ShapeGraphicDecorator(GraphicDecorator):
     def draw(self):
-        self._canvas.delete(self.tag)
+        self._canvas.delete(self.get_tag())
         for dot in self.get():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.get_color(), tags=self.tag)
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.get_color(), tags=self.get_tag())
 
 
 class QuadrillionGraphicDisplay:
@@ -96,11 +99,14 @@ class QuadrillionGraphicDisplay:
         self.canvas.grid(rowspan=int(vertical_cells/2), columnspan=int(horizontal_cells/2), padx=2, pady=2)
 
         self.items = dict()
+        self.grid_decorator = GridGraphicDecorator(self.canvas)
+        self.shape_decorator = ShapeGraphicDecorator(self.canvas)
         for grid in self.quadrillion.grids:
-            self.items[id(grid)] = GridGraphicDecorator(grid, self.canvas)
+            self.items[grid] = self.grid_decorator
         for shape in self.quadrillion.shapes:
-            self.items[id(shape)] = ShapeGraphicDecorator(shape, self.canvas)
+            self.items[shape] = self.shape_decorator
 
+        self.update()
         self.picked = None
         self.canvas.bind("<Button-1>", self._on_cell_clicked)
         self.canvas.bind("<Key>", self._on_key_press)
@@ -110,15 +116,18 @@ class QuadrillionGraphicDisplay:
     def update(self, item=None):
         if item is None:
             self._release()
-            for item in self.items.values():
-                item.draw()
+            for item in self.items:
+                self.items[item].set_dot_set(item)
+                self.items[item].draw()
         else:
-            self.items[id(item)].draw()
+            self.items[item].set_dot_set(item)
+            self.items[item].draw()
 
     def _pick(self, picked, cell):
-        self.picked = self.items[id(picked)]
+        self.picked = self.items[picked]
+        self.picked.set_dot_set(picked)
         self.picked.hook(cell)
-        self.canvas.tag_raise(self.picked.tag)
+        self.canvas.tag_raise(self.picked.get_tag())
         self.canvas.focus_set()
         self.canvas.bind("<Button-3>", self._on_cell_clicked)
         self.canvas.bind("<Motion>", self._on_mouse_motion)
