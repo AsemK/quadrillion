@@ -26,72 +26,83 @@ class QuadrillionStrategy:
     def __init__(self, dot_space_dim, colleagues):
         self._dot_space_dim = dot_space_dim
         self._colleagues = colleagues
-        self._colleagues_locs = dict()
+        self._colleagues_dots = dict()
 
-    def pick(self, loc, other_strategy):
-        if loc in self._colleagues_locs:
-            picked = self._colleagues_locs[loc]
-            if self.is_pickable(picked, other_strategy):
-                for dot in picked.get():
-                    del self._colleagues_locs[dot]
-                return picked
-        return None
+    def pick(self, colleague):
+        picked = self.is_pickable(colleague)
+        if picked:
+            for dot in colleague.get():
+                del self._colleagues_dots[dot]
+        return picked
 
-    def release(self, colleague, other_strategy):
-        released = self.is_releasable(colleague, other_strategy)
+    def release(self, colleague):
+        released = self.is_releasable(colleague)
         if released:
             for dot in colleague.get():
-                self._colleagues_locs[dot] = colleague
+                self._colleagues_dots[dot] = colleague
         return released
 
     def reset(self, other_strategy):
+        self.other_strategy = other_strategy
         for colleague in self._colleagues:
             colleague.reset()
-            released = self.release(colleague, other_strategy)
+            released = self.release(colleague)
             assert released
+
+    def get_at(self, dot):
+        if dot in self._colleagues_dots:
+            return self._colleagues_dots[dot]
+        return None
+
+    def get_dots(self):
+        return set(self._colleagues_dots.keys())
 
     def is_on_board(self, dot_set):
         return all(0 <= y < self._dot_space_dim[0] and 0 <= x < self._dot_space_dim[1] for (y, x) in dot_set.get())
 
     def is_overlapping(self, dot_set):
-        return any(dot in self._colleagues_locs for dot in dot_set.get())
+        return any(dot in self._colleagues_dots for dot in dot_set.get())
 
-    def is_releasable(self, colleague, other_strategy):
-        pass
+    def is_releasable(self, colleague):
+        return False
 
-    def is_pickable(self, colleague, other_strategy):
-        pass
+    def is_pickable(self, colleague):
+        return False
 
 
 class GridQuadrillionStrategy(QuadrillionStrategy):
-    def is_releasable(self, colleague, shape_strategy):
-        return self.is_on_board(colleague) and not self.is_overlapping(colleague) and not shape_strategy.is_overlapping(colleague)
+    def is_releasable(self, colleague):
+        return self.is_on_board(colleague)\
+               and not self.is_overlapping(colleague) and not self.other_strategy.is_overlapping(colleague)
 
-    def is_pickable(self, colleague, shape_strategy):
-        return not shape_strategy.is_overlapping(colleague)
+    def is_pickable(self, colleague):
+        return not self.other_strategy.is_overlapping(colleague)
 
     def is_on_valid(self, dot_set):
-        valid = self._get_valid_locs()
+        valid = self.get_valid_dots()
         return all(dot in valid for dot in dot_set.get())
 
-    def is_won(self, shape_strategy):
-        for colleage in self._colleagues:
-            shape_strategy.is_overlapping(colleage)
-
-    def _get_valid_locs(self):
-        valid = set(self._colleagues_locs.keys())
+    def get_valid_dots(self):
+        valid = self.get_dots()
         for grid in self._colleagues:
             valid -= grid.get_invalid()
         return valid
 
 
 class ShapeQuadrillionStrategy(QuadrillionStrategy):
-    def is_releasable(self, colleague, grid_strategy):
+    def is_releasable(self, colleague):
         return self.is_on_board(colleague) and not self.is_overlapping(colleague)\
-               and (grid_strategy.is_on_valid(colleague) or not grid_strategy.is_overlapping(colleague))
+               and (self.other_strategy.is_on_valid(colleague) or not self.other_strategy.is_overlapping(colleague))
 
-    def is_pickable(self, colleague, grid_strategy):
+    def is_pickable(self, colleague):
         return True
+
+    def get_unplaced(self):
+        unplaced = set(self._colleagues)
+        for shape in unplaced:
+            if self.other_strategy.is_overlapping(shape):
+                unplaced.remove(shape)
+        return unplaced
 
 
 class Quadrillion:
@@ -110,6 +121,8 @@ class Quadrillion:
             config = initial_configs[shape] if shape in initial_configs else SHAPES[shape][1]
             self.shapes.add(DotShape(SHAPES[shape][0], *config, SHAPES[shape][2]))
 
+        self.grids = frozenset(self.grids)
+        self.shapes = frozenset(self.shapes)
         self.reset()
 
     def reset(self):
@@ -120,37 +133,34 @@ class Quadrillion:
         self.shape_strategy.reset(self.grid_strategy)
         self.notify()
 
-    def pick(self, loc):
-        if self.picked is None:
-            self.picked = self.grid_strategy.pick(loc, self.shape_strategy)
-            self.current_strategy = self.grid_strategy
-            self.other_strategy = self.shape_strategy
-        if self.picked is None:
-            self.picked = self.shape_strategy.pick(loc, self.grid_strategy)
-            self.current_strategy = self.shape_strategy
-            self.other_strategy = self.grid_strategy
-        if self.picked:
-            self.picked_momento = self.picked.get_config()
-        return self.picked
+    def pick_at(self, dot):
+        if self.picked: return None
+        for strategy in self.shape_strategy, self.grid_strategy:
+            self.picked = strategy.get_at(dot)
+            if self.picked:
+                picked = strategy.pick(self.picked)
+                if picked:
+                    self.current_strategy = strategy
+                    self.picked_momento = self.picked.get_config()
+                    return self.picked
+                break
+        return None
 
     def unpick(self):
         if self.picked:
             self.picked.set_config(*self.picked_momento)
-            self.current_strategy.release(self.picked, self.other_strategy)
+            self.current_strategy.release(self.picked)
             self.notify(self.picked)
             self.picked = None
 
     def release(self):
         if self.picked:
-            released = self.current_strategy.release(self.picked, self.other_strategy)
+            released = self.current_strategy.release(self.picked)
             if not released:
                 self.unpick()
             self.picked = None
             return released
         return False
-
-    def is_won(self):
-        return self.grid_strategy.is_won(self.shape_strategy)
 
     def attach_view(self, view):
         self.views.append(view)
@@ -158,6 +168,18 @@ class Quadrillion:
     def notify(self, item=None):
         for view in self.views:
             view.update(item)
+
+    def is_won(self):
+        return len(self.get_empty_grid_dots()) == 0
+
+    def get_grid_dots(self):
+        return self.grid_strategy.get_dots()
+
+    def get_empty_grid_dots(self):
+        return self.grid_strategy.get_valid_dots() - self.shape_strategy.get_dots()
+
+    def get_unplaced_shapes(self):
+        return self.shape_strategy.get_unplaced()
 
 
 if __name__ == '__main__':

@@ -140,7 +140,7 @@ class QuadrillionGraphicDisplay:
     def _on_cell_clicked(self, event):
         if self.picked is None:
             cell = GraphicUtils.pos2cell(event.x, event.y)
-            picked = self.quadrillion.pick(cell)
+            picked = self.quadrillion.pick_at(cell)
             if picked:
                 self._pick(picked, cell)
         else:
@@ -157,7 +157,7 @@ class QuadrillionGraphicDisplay:
 
     def _on_key_press(self, event):
         key = event.keysym
-        if key == 'r' or key == 'R':           self.quadrillion.reset();
+        if key == 'r' or key == 'R':           self.quadrillion.reset()
         if self.picked:
             if key == 'Left':                  self.picked.rotate()
             elif key == 'Right':               self.picked.rotate(-1)
