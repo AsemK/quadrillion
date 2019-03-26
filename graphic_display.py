@@ -4,86 +4,6 @@ DOT_COLOR = '#999999'
 BG_COLOR = '#BBBBBB'
 
 
-class GraphicUtils:
-    @staticmethod
-    def pos2cell(x, y):
-        return y // CELL_Len, x // CELL_Len
-
-    @staticmethod
-    def cell2pos(i, j):
-        return j * CELL_Len, i * CELL_Len
-
-    @staticmethod
-    def cell2bbox(start_cell, end_cell=0, cell_span=1):
-        x1, y1 = GraphicUtils.cell2pos(*start_cell)
-        x1 += (1 - cell_span) / 2 * CELL_Len
-        y1 += (1 - cell_span) / 2 * CELL_Len
-        if not end_cell: end_cell = start_cell
-        x2, y2 = GraphicUtils.cell2pos(end_cell[0] + 1, end_cell[1] + 1)
-        x2 -= (1 - cell_span) / 2 * CELL_Len
-        y2 -= (1 - cell_span) / 2 * CELL_Len
-        return x1, y1, x2, y2
-
-    @staticmethod
-    def circle_in_cell(canvas, cell, cell_span, **kwargs):
-        extent = kwargs.get('extent', 359.0)
-        style = kwargs.get('style', 'chord')
-        outline = kwargs.get('outline', '')
-        canvas.create_arc(GraphicUtils.cell2bbox(cell, 0, cell_span),
-                          extent=extent, style=style, outline=outline, **kwargs)
-
-    @staticmethod
-    def rectangle_over_cells(canvas, start_cell, end_cell, cell_span=1, **kwargs):
-        width = kwargs.get('width', 2)
-        outline = kwargs.get('outline', 'black')
-        canvas.create_rectangle(GraphicUtils.cell2bbox(start_cell, end_cell, cell_span),
-                                width=width, outline=outline, **kwargs)
-
-
-class GraphicDecorator:
-    def __init__(self, canvas):
-        self._canvas = canvas
-
-    def __getattr__(self, item):
-        return getattr(self._dot_set, item)
-    
-    def get_tag(self):
-        return str(id(self._dot_set)) + 't'
-    
-    def set_dot_set(self, dot_set):
-        self._dot_set = dot_set
-
-    def draw(self):
-        pass
-
-    def hook(self, cell):
-        self.hook_loc = cell
-
-    def move_to(self, cell):
-        self.move((cell[0]-self.hook_loc[0], cell[1]-self.hook_loc[1]))
-        self.hook(cell)
-
-
-class GridGraphicDecorator(GraphicDecorator):
-    def draw(self):
-        self._canvas.delete(self.get_tag())
-        start_cell = self.get_config()[2]
-        end_cell = (start_cell[0] + 3, start_cell[1] + 3)
-        valid_color, invalid_color = self.get_color()
-        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.get_tag())
-        for dot in self.get_valid():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.get_tag())
-        for dot in self.get_invalid():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.get_tag())
-
-
-class ShapeGraphicDecorator(GraphicDecorator):
-    def draw(self):
-        self._canvas.delete(self.get_tag())
-        for dot in self.get():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.get_color(), tags=self.get_tag())
-
-
 class QuadrillionGraphicDisplay:
     def __init__(self, quadrillion_game):
         self.parent = tk.Tk()
@@ -98,13 +18,13 @@ class QuadrillionGraphicDisplay:
                                 bg=BG_COLOR, highlightthickness=0)
         self.canvas.grid(rowspan=int(vertical_cells/2), columnspan=int(horizontal_cells/2), padx=2, pady=2)
 
-        self.items = dict()
-        self.grid_decorator = GridGraphicDecorator(self.canvas)
-        self.shape_decorator = ShapeGraphicDecorator(self.canvas)
+        self.item_to_decorator_flyweight = dict()
+        self.grid_decorator = GridGraphicDecoratorFlyweight(self.canvas)
+        self.shape_decorator = ShapeGraphicDecoratorFlyweight(self.canvas)
         for grid in self.quadrillion.grids:
-            self.items[grid] = self.grid_decorator
+            self.item_to_decorator_flyweight[grid] = self.grid_decorator
         for shape in self.quadrillion.shapes:
-            self.items[shape] = self.shape_decorator
+            self.item_to_decorator_flyweight[shape] = self.shape_decorator
 
         self.update()
         self.picked = None
@@ -116,15 +36,15 @@ class QuadrillionGraphicDisplay:
     def update(self, item=None):
         if item is None:
             self._release()
-            for item in self.items:
-                self.items[item].set_dot_set(item)
-                self.items[item].draw()
+            for item in self.item_to_decorator_flyweight:
+                self.item_to_decorator_flyweight[item].set_dot_set(item)
+                self.item_to_decorator_flyweight[item].draw()
         else:
-            self.items[item].set_dot_set(item)
-            self.items[item].draw()
+            self.item_to_decorator_flyweight[item].set_dot_set(item)
+            self.item_to_decorator_flyweight[item].draw()
 
     def _pick(self, picked, cell):
-        self.picked = self.items[picked]
+        self.picked = self.item_to_decorator_flyweight[picked]
         self.picked.set_dot_set(picked)
         self.picked.hook(cell)
         self.canvas.tag_raise(self.picked.get_tag())
@@ -158,7 +78,7 @@ class QuadrillionGraphicDisplay:
     def _on_key_press(self, event):
         key = event.keysym
         if key == 'r' or key == 'R':           self.quadrillion.reset()
-        if self.picked:
+        elif self.picked:
             if key == 'Left':                  self.picked.rotate()
             elif key == 'Right':               self.picked.rotate(-1)
             elif key == 'Up' or key == 'Down': self.picked.flip()
@@ -171,3 +91,84 @@ class QuadrillionGraphicDisplay:
             else: return
             if self.picked:
                 self.picked.draw()
+
+
+class GraphicDecoratorFlyweight:
+    def __init__(self, canvas):
+        self._canvas = canvas
+        self._dot_set = None
+
+    def set_dot_set(self, dot_set):
+        self._dot_set = dot_set
+
+    def __getattr__(self, item):
+        return getattr(self._dot_set, item)
+
+    def get_tag(self):
+        return str(id(self._dot_set)) + 't'
+
+    def draw(self):
+        pass
+
+    def hook(self, cell):
+        self.hook_loc = cell
+
+    def move_to(self, cell):
+        self.move((cell[0] - self.hook_loc[0], cell[1] - self.hook_loc[1]))
+        self.hook(cell)
+
+
+class GridGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
+    def draw(self):
+        self._canvas.delete(self.get_tag())
+        start_cell = self.get_config()[2]
+        end_cell = (start_cell[0] + 3, start_cell[1] + 3)
+        valid_color, invalid_color = self.get_color()
+        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.get_tag())
+        for dot in self.get_valid():
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.get_tag())
+        for dot in self.get_invalid():
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.get_tag())
+
+
+class ShapeGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
+    def draw(self):
+        self._canvas.delete(self.get_tag())
+        for dot in self.get():
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.get_color(), tags=self.get_tag())
+
+
+class GraphicUtils:
+    @staticmethod
+    def circle_in_cell(canvas, cell, cell_span, **kwargs):
+        extent = kwargs.get('extent', 359.0)
+        style = kwargs.get('style', 'chord')
+        outline = kwargs.get('outline', '')
+        canvas.create_arc(GraphicUtils.cell2bbox(cell, 0, cell_span),
+                          extent=extent, style=style, outline=outline, **kwargs)
+
+    @staticmethod
+    def rectangle_over_cells(canvas, start_cell, end_cell, cell_span=1, **kwargs):
+        width = kwargs.get('width', 2)
+        outline = kwargs.get('outline', 'black')
+        canvas.create_rectangle(GraphicUtils.cell2bbox(start_cell, end_cell, cell_span),
+                                width=width, outline=outline, **kwargs)
+
+    @staticmethod
+    def cell2bbox(start_cell, end_cell=0, cell_span=1):
+        x1, y1 = GraphicUtils.cell2pos(*start_cell)
+        x1 += (1 - cell_span) / 2 * CELL_Len
+        y1 += (1 - cell_span) / 2 * CELL_Len
+        if not end_cell: end_cell = start_cell
+        x2, y2 = GraphicUtils.cell2pos(end_cell[0] + 1, end_cell[1] + 1)
+        x2 -= (1 - cell_span) / 2 * CELL_Len
+        y2 -= (1 - cell_span) / 2 * CELL_Len
+        return x1, y1, x2, y2
+
+    @staticmethod
+    def pos2cell(x, y):
+        return y // CELL_Len, x // CELL_Len
+
+    @staticmethod
+    def cell2pos(i, j):
+        return j * CELL_Len, i * CELL_Len
