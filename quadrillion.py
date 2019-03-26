@@ -143,6 +143,7 @@ class Quadrillion:
                     self.current_strategy = strategy
                     self.picked_momento = self.picked.get_config()
                     return self.picked
+                self.picked = None
                 break
         return None
 
