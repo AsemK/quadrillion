@@ -99,10 +99,11 @@ class TestDotShape(unittest.TestCase):
 
     def test_unique_orients(self):
         for dot, shapes in [(self.dot1, self.shapes1), (self.dot2, self.shapes2), (self.dot3, self.shapes3)]:
-            orients = dot.get_unique_orients()
-            self.assertEqual(len(shapes), len(orients))
+            configs = dot.get_unique_configs(loc=(0, 0))
+            self.assertEqual(len(shapes), len(configs))
+            shape_at_configs = [dot._get_at_config(*config) for config in configs]
             for shape in shapes:
-                self.assertIn(shape, orients.values())
+                self.assertIn(shape, shape_at_configs)
 
     def test_movement_away(self):
         flp = 1

@@ -61,6 +61,13 @@ class Quadrillion:
             return released
         return False
 
+    def get_at(self, dot):
+        for strategy in self.shape_strategy, self.grid_strategy:
+            item = strategy.get_at(dot)
+            if item:
+                return item
+        return None
+
     def attach_view(self, view):
         self.views.append(view)
 
@@ -69,16 +76,16 @@ class Quadrillion:
             view.update(item)
 
     def is_won(self):
-        return len(self.get_empty_grid_dots()) == 0
+        return len(self.get_released_empty_grid_dots()) == 0
 
-    def get_grid_dots(self):
-        return self.grid_strategy.get_dots()
+    def get_released_grid_dots(self):
+        return self.grid_strategy.get_released_dots()
 
-    def get_empty_grid_dots(self):
-        return self.grid_strategy.get_valid_dots() - self.shape_strategy.get_dots()
+    def get_released_empty_grid_dots(self):
+        return self.grid_strategy.get_released_valid_dots() - self.shape_strategy.get_released_dots()
 
-    def get_unplaced_shapes(self):
-        return self.shape_strategy.get_unplaced()
+    def get_released_unplaced_shapes(self):
+        return self.shape_strategy.get_released_unplaced_shapes()
 
 
 class QuadrillionStrategy:
@@ -113,35 +120,37 @@ class QuadrillionStrategy:
             return self._colleagues_dots[dot]
         return None
 
-    def get_dots(self):
+    def get_released_dots(self):
         return set(self._colleagues_dots.keys())
 
     def is_releasable(self, colleague):
-        return self.is_on_board(colleague) and not self.is_overlapping(colleague)
+        return self.is_on_board(colleague) and not self.is_overlapping_released_dots(colleague)
 
     def is_pickable(self, colleague):
         return True
 
-    def is_on_board(self, dot_set):
-        return all(0 <= y < self._dot_space_dim[0] and 0 <= x < self._dot_space_dim[1] for (y, x) in dot_set.get())
+    def is_on_board(self, item):
+        return all(0 <= y < self._dot_space_dim[0] and 0 <= x < self._dot_space_dim[1] for (y, x) in item.get())
 
-    def is_overlapping(self, dot_set):
-        return any(dot in self._colleagues_dots for dot in dot_set.get())
+    def is_overlapping_released_dots(self, item):
+        return any(dot in self.get_released_dots() for dot in item.get())
 
 
 class GridQuadrillionStrategy(QuadrillionStrategy):
     def is_releasable(self, colleague):
-        return QuadrillionStrategy.is_releasable(self, colleague) and not self.other_strategy.is_overlapping(colleague)
+        return QuadrillionStrategy.is_releasable(self, colleague)\
+               and not self.other_strategy.is_overlapping_released_dots(colleague)
 
     def is_pickable(self, colleague):
-        return not self.other_strategy.is_overlapping(colleague)
+        return not self.other_strategy.is_overlapping_released_dots(colleague)
 
-    def is_on_valid(self, dot_set):
-        valid = self.get_valid_dots()
-        return all(dot in valid for dot in dot_set.get())
+    def is_on_valid(self, item):
+        valid = self.get_released_valid_dots()
+        return all(dot in valid for dot in item.get())
 
-    def get_valid_dots(self):
-        valid = self.get_dots()
+    def get_released_valid_dots(self):
+        # TODO: make it for released dots only
+        valid = self.get_released_dots()
         for grid in self._colleagues:
             valid -= grid.get_invalid()
         return valid
@@ -150,12 +159,14 @@ class GridQuadrillionStrategy(QuadrillionStrategy):
 class ShapeQuadrillionStrategy(QuadrillionStrategy):
     def is_releasable(self, colleague):
         return QuadrillionStrategy.is_releasable(self, colleague)\
-               and (self.other_strategy.is_on_valid(colleague) or not self.other_strategy.is_overlapping(colleague))
+               and (self.other_strategy.is_on_valid(colleague)
+                    or not self.other_strategy.is_overlapping_released_dots(colleague))
 
-    def get_unplaced(self):
+    def get_released_unplaced_shapes(self):
+        # TODO: make it for released dots only
         unplaced = set(self._colleagues)
         for shape in unplaced:
-            if self.other_strategy.is_overlapping(shape):
+            if self.other_strategy.is_overlapping_released_dots(shape):
                 unplaced.remove(shape)
         return unplaced
 

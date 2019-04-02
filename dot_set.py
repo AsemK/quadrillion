@@ -82,25 +82,17 @@ class DotSet:
 
 
 class DotShape(DotSet):
-    def get_unique_orients(self):
-        orients = []
-        shapes = []
-        for flp in [0, 1]:
-            for rot in range(0, 4):
-                config_shape = self._get_at_config(flp, rot)
-                if all(shape != config_shape for shape in shapes):
-                    orients.append((flp, rot))
-                    shapes.append(config_shape)
-        return dict(zip(orients, shapes))
-
-    def _dot_set_to_config(self, dot_set):
-        loc1 = min(pos[0] for pos in dot_set)
-        loc2 = min(pos[1] for pos in dot_set)
-        origin_dot_set = {(h-loc1, w-loc2) for (h, w) in dot_set}
-        for orient, shape in self.get_unique_orients().items():
-            if shape == origin_dot_set:
-                return orient[0], orient[1], (loc1, loc2)
-        return None
+    def get_unique_configs(self, loc):
+        if not hasattr(self, '_orients'):
+            self._orients = []
+            shapes = []
+            for flp in [0, 1]:
+                for rot in range(0, 4):
+                    config_shape = self._get_at_config(flp, rot)
+                    if all(shape != config_shape for shape in shapes):
+                        self._orients.append((flp, rot))
+                        shapes.append(config_shape)
+        return {(flp, rot, loc) for flp, rot in self._orients}
 
 
 class DotGrid(DotSet):
