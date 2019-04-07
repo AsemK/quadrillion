@@ -35,7 +35,7 @@ class QuadrillionGraphicDisplay:
 
     def update(self, item=None):
         if item is None:
-            self._release()
+            self._do_after_release()
             for item in self.item_to_decorator_flyweight:
                 self.item_to_decorator_flyweight[item].set_dot_set(item)
                 self.item_to_decorator_flyweight[item].draw()
@@ -43,7 +43,7 @@ class QuadrillionGraphicDisplay:
             self.item_to_decorator_flyweight[item].set_dot_set(item)
             self.item_to_decorator_flyweight[item].draw()
 
-    def _pick(self, picked, cell):
+    def _do_after_pick(self, picked, cell):
         self.picked = self.item_to_decorator_flyweight[picked]
         self.picked.set_dot_set(picked)
         self.picked.hook(cell)
@@ -52,7 +52,7 @@ class QuadrillionGraphicDisplay:
         self.canvas.bind("<Button-3>", self._on_cell_clicked)
         self.canvas.bind("<Motion>", self._on_mouse_motion)
 
-    def _release(self):
+    def _do_after_release(self):
         self.picked = None
         self.canvas.unbind("<Button-3>")
         self.canvas.unbind("<Motion>")
@@ -60,15 +60,16 @@ class QuadrillionGraphicDisplay:
     def _on_cell_clicked(self, event):
         if self.picked is None:
             cell = GraphicUtils.pos2cell(event.x, event.y)
-            picked = self.quadrillion.pick_at(cell)
+            picked = self.quadrillion.get_at(cell)
             if picked:
-                self._pick(picked, cell)
+                if self.quadrillion.pick([picked]):
+                    self._do_after_pick(picked, cell)
         else:
             if event.num == 1:
-                self.quadrillion.release()
+                self.quadrillion.release() or self.quadrillion.unpick()
             else:
                 self.quadrillion.unpick()
-            self._release()
+            self._do_after_release()
 
     def _on_mouse_motion(self, event):
         current_cell = GraphicUtils.pos2cell(event.x, event.y)
@@ -86,8 +87,8 @@ class QuadrillionGraphicDisplay:
             elif key == 'a' or key == 'A':     self.picked.move((0, -1))
             elif key == 's' or key == 'S':     self.picked.move((1, 0))
             elif key == 'd' or key == 'D':     self.picked.move((0, 1))
-            elif key == 'Return':              self.quadrillion.release(); self._release()
-            elif key == 'Escape':              self.quadrillion.unpick();  self._release()
+            elif key == 'Return':              self.quadrillion.release() or self.quadrillion.unpick(); self._do_after_release()
+            elif key == 'Escape':              self.quadrillion.unpick();  self._do_after_release()
             else: return
             if self.picked:
                 self.picked.draw()
