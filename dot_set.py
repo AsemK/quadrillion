@@ -67,19 +67,6 @@ class DotSet:
     def _moved(self, dot_set, displacement):
         return {(dot[0] + displacement[0], dot[1] + displacement[1]) for dot in dot_set}
 
-    def __str__(self):
-        dot_set = self._get_at_config(self.flp, self.rot)
-        height, width = self._get_dims_at_config(*self.get_config())
-        out = ''
-        for h in range(height):
-            out += '\n'
-            for w in range(width):
-                if (h, w) in dot_set:
-                    out += u'\u26AB' + ' '
-                else:
-                    out += u'\u26AA' + ' '
-        return out
-
 
 class DotShape(DotSet):
     def get_unique_configs(self, loc):
