@@ -31,10 +31,9 @@ class DotsSet(Set):
         self.config = self.config._replace(flips=self.config.flips + 1)
 
     def rotate(self, clockwise):
-        if clockwise:
-            self.config = self.config._replace(rotations=self.config.rotations + 1)
-        else:
-            self.config = self.config._replace(rotations=self.config.rotations - 1)
+        rotation_sign = self._get_current_clockwise_rotation_sign()
+        clockwise_rotations = 1 if clockwise else -1
+        self.config = self.config._replace(rotations=self.config.rotations + clockwise_rotations*rotation_sign)
 
     def move(self, displacement):
         dy, dx = displacement
@@ -51,17 +50,16 @@ class DotsSet(Set):
     @config.setter
     def config(self, config):
         delta_flips = (config.flips - self.config.flips)
-        rotation_sign = (1 - 2*(delta_flips % 2))
-        delta_rotations = rotation_sign*(config.rotations - self.config.rotations)
+        delta_rotations = (config.rotations - self.config.rotations)
         displacement = (config.location[0] - self.config.location[0],
                         config.location[1] - self.config.location[1])
 
         self._flip(delta_flips)
-        self._rotate_clockwise(delta_rotations)
+        self._config = self._config._replace(flips=config.flips % 2)
+        self._rotate(delta_rotations)
+        self._config = self._config._replace(rotations=config.rotations % 4)
         self._move(displacement)
-
-        self._config = config._replace(flips=config.flips % 2,
-                                       rotations=rotation_sign*(config.rotations % 4))
+        self._config = self._config._replace(location=config.location)
 
     def _are_valid_dots(self, dots):
         return all(len(dot) == 2 and isinstance(dot, tuple)
@@ -72,12 +70,14 @@ class DotsSet(Set):
         if times % 2:
             self._flip_vertically()
 
-    def _rotate_clockwise(self, times):
-        if times % 4 == 1:
+    def _rotate(self, times):
+        # if clockwise_rotation is negative, the rotation will be counterclockwise because of the modulo
+        clockwise_rotations = times * self._get_current_clockwise_rotation_sign()
+        if clockwise_rotations % 4 == 1:
             self._rotate_90_degrees_clockwise()
-        elif times % 4 == 2:
+        elif clockwise_rotations % 4 == 2:
             self._rotate_180_degrees()
-        elif times % 4 == 3:
+        elif clockwise_rotations % 4 == 3:
             self._rotate_90_degrees_counterclockwise()
 
     def _move(self, displacement):
@@ -107,6 +107,9 @@ class DotsSet(Set):
         y0, x0 = self.config.location
         self._dots_set = frozenset({(y0 + width - 1 - (x - x0), x0 + y - y0)
                                     for y, x in self._dots_set})
+
+    def _get_current_clockwise_rotation_sign(self):
+        return 1 - 2*(self.config.flips % 2)  # 1 if shape is not flipped else -1
 
     def _get_current_height_and_width(self):
         if self.config.rotations % 2 == 1:

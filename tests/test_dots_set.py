@@ -4,21 +4,21 @@ from dots_set import DotsSet, Config
 """
 shapes:
  [0]         [1]         [2]         [3]
-O O O        O X        X O O        O O
-O O X rot -> O O rot -> O O O rot -> O O
-X X X        O O        X X X        X O
+O O O        O O        . O O        O .
+O O . rot -> O O rot -> O O O rot -> O O  clockwise rotation
+. . .        . O        . . .        O O
  flip
   |
   v
  [4]         [5]         [6]         [7]
-O O X        X O        O O O        O O
-O O O rot -> O O rot -> X O O rot -> O O
-X X X        O O        X X X        O X
+O O .        . O        O O O        O O
+O O O rot -> O O rot -> . O O rot -> O O  counterclockwise rotation
+. . .        O O        . . .        O .
 """
 shapes = [{(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)},
-          {(0, 0), (2, 1), (2, 0), (1, 0), (1, 1)},
-          {(0, 1), (1, 2), (0, 2), (1, 0), (1, 1)},
           {(0, 1), (0, 0), (2, 1), (1, 0), (1, 1)},
+          {(0, 1), (1, 2), (0, 2), (1, 0), (1, 1)},
+          {(0, 0), (2, 1), (2, 0), (1, 0), (1, 1)},
           {(1, 2), (0, 1), (0, 0), (1, 0), (1, 1)},
           {(0, 1), (2, 1), (2, 0), (1, 0), (1, 1)},
           {(0, 1), (1, 2), (0, 0), (1, 1), (0, 2)},
@@ -63,13 +63,13 @@ class DotsSetMovementsTest(unittest.TestCase):
                 self.dots_set.move(self.displacement)
         self.assertSequenceEqual(self.dots_set, result_shape)
 
-    def test_four_rotations_counterclockwise(self):
-        for shape in shapes[1:4] + [shapes[0]]:
-            self.do_movements_and_check_result('ccwr', result_shape=shape)
-
     def test_four_rotations_clockwise(self):
-        for shape in shapes[3::-1]:
+        for shape in shapes[1:4] + [shapes[0]]:
             self.do_movements_and_check_result('cwr', result_shape=shape)
+
+    def test_four_rotations_counterclockwise(self):
+        for shape in shapes[3::-1]:
+            self.do_movements_and_check_result('ccwr', result_shape=shape)
 
     def test_two_flips(self):
         for shape in shapes[4], shapes[0]:
@@ -134,7 +134,7 @@ class DotsSetConfigTest(unittest.TestCase):
         for flips in range(config.flips):
             self.unconfigured_set.flip()
         for rotations in range(config.rotations):
-            self.unconfigured_set.rotate(clockwise=True)
+            self.unconfigured_set.rotate(clockwise=False if config.flips % 2 else True)
         self.unconfigured_set.move(config.location)
 
         self.assertEqual(self.unconfigured_set, configured_shape)
@@ -173,7 +173,6 @@ class DotsSetConfigTest(unittest.TestCase):
 
         self.configured_set1.config = config1
         self.assertEqual(self.configured_set1, snapshot1)
-
 
 
 if __name__ == '__main__':
