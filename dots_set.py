@@ -24,6 +24,9 @@ class DotsSet(Set):
     def __len__(self):
         return len(self._dots_set)
 
+    def __hash__(self):
+        return hash(self._dots_set)
+
     def __repr__(self):
         return type(self).__name__ + '({' + ", ".join({str(dot) for dot in self}) + '})'
 
@@ -33,7 +36,8 @@ class DotsSet(Set):
     def rotate(self, clockwise):
         rotation_sign = self._get_current_clockwise_rotation_sign()
         clockwise_rotations = 1 if clockwise else -1
-        self.config = self.config._replace(rotations=self.config.rotations + clockwise_rotations*rotation_sign)
+        self.config = self.config._replace(rotations=self.config.rotations
+                                           + clockwise_rotations*rotation_sign)
 
     def move(self, displacement):
         dy, dx = displacement
@@ -63,7 +67,7 @@ class DotsSet(Set):
 
     def _are_valid_dots(self, dots):
         return all(len(dot) == 2 and isinstance(dot, tuple)
-                   and all(isinstance(axis, int) for axis in dot)
+                   and all(isinstance(axis, int) and axis >= 0 for axis in dot)
                    for dot in dots)
 
     def _flip(self, times):
