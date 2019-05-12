@@ -3,13 +3,12 @@ Config = namedtuple('Config', ['flips', 'rotations', 'location'])
 
 
 class DotsSet(Set):
-    def __init__(self, dots,
-                 initial_config=Config(flips=0, rotations=0, location=(0, 0))):
+    def __init__(self, dots, initial_config=Config(flips=0, rotations=0, location=(0, 0))):
         if not self._are_valid_dots(dots):
             raise TypeError("dots must be of the form (int, int)")
-        self._dots_set = frozenset(dots)
-        self._initial_height=max(pos[0] for pos in self._dots_set) + 1
-        self._initial_width=max(pos[1] for pos in self._dots_set) + 1
+        self._dots_set = self._initial_dots_set = frozenset(dots)
+        self._height = max(pos[0] for pos in self._dots_set) + 1
+        self._width = max(pos[1] for pos in self._dots_set) + 1
 
         self._config = Config(flips=0, rotations=0, location=(0, 0))
         self._initial_config = initial_config
@@ -30,22 +29,20 @@ class DotsSet(Set):
     def __repr__(self):
         return type(self).__name__ + '({' + ", ".join({str(dot) for dot in self}) + '})'
 
+    def reset(self):
+        self.config = self._initial_config
+
     def flip(self):
-        self.config = self.config._replace(flips=self.config.flips + 1)
+        self.config = self.config._replace(flips=self.config.flips + 1, rotations=-self.config.rotations)
 
     def rotate(self, clockwise):
-        rotation_sign = self._get_current_clockwise_rotation_sign()
         clockwise_rotations = 1 if clockwise else -1
-        self.config = self.config._replace(rotations=self.config.rotations
-                                           + clockwise_rotations*rotation_sign)
+        self.config = self.config._replace(rotations=self.config.rotations + clockwise_rotations)
 
     def move(self, displacement):
         dy, dx = displacement
         y, x = self.config.location
         self.config = self.config._replace(location=(y+dy, x+dx))
-
-    def reset(self):
-        self.config = self._initial_config
 
     @property
     def config(self):
@@ -53,70 +50,83 @@ class DotsSet(Set):
 
     @config.setter
     def config(self, config):
-        delta_flips = (config.flips - self.config.flips)
-        delta_rotations = (config.rotations - self.config.rotations)
-        displacement = (config.location[0] - self.config.location[0],
-                        config.location[1] - self.config.location[1])
-
-        self._flip(delta_flips)
-        self._config = self._config._replace(flips=config.flips % 2)
-        self._rotate(delta_rotations)
-        self._config = self._config._replace(rotations=config.rotations % 4)
-        self._move(displacement)
-        self._config = self._config._replace(location=config.location)
+        self._config = config._replace(flips=config.flips % 2, rotations=config.rotations % 4)
+        self._dots_set = frozenset(self._initial_dots_configured(self.config))
 
     def _are_valid_dots(self, dots):
         return all(len(dot) == 2 and isinstance(dot, tuple)
                    and all(isinstance(axis, int) and axis >= 0 for axis in dot)
                    for dot in dots)
 
-    def _flip(self, times):
+    def _initial_dots_configured(self, config):
+        flipped_dots = self._initial_dots_flipped(config.flips)
+        rotated_dots = self._rotated_clockwise(flipped_dots, config.rotations)
+        moved_dots = self._moved(rotated_dots, config.location)
+        return moved_dots
+
+    def _initial_dots_flipped(self, times):
         if times % 2:
-            self._flip_vertically()
-
-    def _rotate(self, times):
-        # if clockwise_rotation is negative, the rotation will be counterclockwise because of the modulo
-        clockwise_rotations = times * self._get_current_clockwise_rotation_sign()
-        if clockwise_rotations % 4 == 1:
-            self._rotate_90_degrees_clockwise()
-        elif clockwise_rotations % 4 == 2:
-            self._rotate_180_degrees()
-        elif clockwise_rotations % 4 == 3:
-            self._rotate_90_degrees_counterclockwise()
-
-    def _move(self, displacement):
-        dy, dx = displacement
-        self._dots_set = frozenset({(y + dy, x + dx) for y, x in self._dots_set})
-
-    def _flip_vertically(self):
-        height, width = self._get_current_height_and_width()
-        y0, x0 = self.config.location
-        self._dots_set = frozenset({(y0 + height - 1 - (y - y0), x)
-                                    for y, x in self._dots_set})
-
-    def _rotate_90_degrees_clockwise(self):
-        height, width = self._get_current_height_and_width()
-        y0, x0 = self.config.location
-        self._dots_set = frozenset({(y0 + x - x0, x0 + height - 1 - (y - y0))
-                                    for y, x in self._dots_set})
-
-    def _rotate_180_degrees(self):
-        height, width = self._get_current_height_and_width()
-        y0, x0 = self.config.location
-        self._dots_set = frozenset({(y0 + height - 1 - (y - y0), x0 + width - 1 - (x - x0))
-                                    for y, x in self._dots_set})
-
-    def _rotate_90_degrees_counterclockwise(self):
-        height, width = self._get_current_height_and_width()
-        y0, x0 = self.config.location
-        self._dots_set = frozenset({(y0 + width - 1 - (x - x0), x0 + y - y0)
-                                    for y, x in self._dots_set})
-
-    def _get_current_clockwise_rotation_sign(self):
-        return 1 - 2*(self.config.flips % 2)  # 1 if shape is not flipped else -1
-
-    def _get_current_height_and_width(self):
-        if self.config.rotations % 2 == 1:
-            return self._initial_width, self._initial_height
+            return self._flipped_vertically(self._initial_dots_set)
         else:
-            return self._initial_height, self._initial_width
+            return self._initial_dots_set
+
+    def _rotated_clockwise(self, dots, times):
+        if times % 4 == 0:
+            return dots
+        elif times % 4 == 1:
+            return self._rotated_90_degrees_clockwise(dots)
+        elif times % 4 == 2:
+            return self._rotated_180_degrees(dots)
+        elif times % 4 == 3:
+            return self._rotated_90_degrees_counterclockwise(dots)
+
+    def _moved(self, dots, displacement):
+        dy, dx = displacement
+        return {(y + dy, x + dx) for y, x in dots}
+
+    def _flipped_vertically(self, dots):
+        return {(self._height - 1 - y, x) for y, x in dots}
+
+    def _rotated_90_degrees_clockwise(self, dots):
+        return {(x, self._height - 1 - y) for y, x in dots}
+
+    def _rotated_180_degrees(self, dots):
+        return {(self._height - 1 - y, self._width - 1 - x) for y, x in dots}
+
+    def _rotated_90_degrees_counterclockwise(self, dots):
+        return {(self._width - 1 - x, y) for y, x in dots}
+
+
+class TwoSidedDotsGrid(DotsSet):
+    def __init__(self, invalid_black, invalid_white, height=4, width=4,
+                 initial_config=Config(flips=0, rotations=0, location=(0, 0))):
+        if not self._are_valid_dots(set(invalid_black) | set(invalid_white), height, width):
+            raise TypeError("dots must be of the form (int, int)")
+
+        self._height = height
+        self._width = width
+
+        self._initial_black_dots = set(invalid_black)
+        self._initial_white_dots = set(invalid_white)
+
+        self._config = Config(flips=0, rotations=0, location=(0, 0))
+        self._initial_config = initial_config
+        self.reset()
+
+    def _are_valid_dots(self, dots, height, width):
+        return super()._are_valid_dots(dots) and all(y < height and x < width for y, x in dots)
+
+    def _initial_dots_configured(self, config):
+        return frozenset(self._get_valid_dots_at(config))
+
+    def _get_valid_dots_at(self, config):
+        invalid_dots = super()._initial_dots_configured(config)
+        all_dots = self._get_all_dots_at(config)
+        return all_dots - invalid_dots
+
+    def _get_all_dots_at(self, config):
+        y0, x0 = config.location
+        return {(y, x) for y in range(y0, y0 + self._height) for x in range(x0, x0 + self._width)}
+
+    def _initial_dots_flipped(self, times):
+        return self._initial_white_dots if times % 2 else self._initial_black_dots

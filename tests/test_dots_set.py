@@ -1,5 +1,5 @@
 import unittest
-from dots_set import DotsSet, Config
+from dots_set import DotsSet, TwoSidedDotsGrid, Config
 
 """
 shapes:
@@ -11,18 +11,54 @@ O O . rot -> O O rot -> O O O rot -> O O  clockwise rotation
   |
   v
  [4]         [5]         [6]         [7]
-O O .        . O        O O O        O O
-O O O rot -> O O rot -> . O O rot -> O O  counterclockwise rotation
-. . .        O O        . . .        O .
+O O .        O O        O O O        . O
+O O O rot -> O O rot -> . O O rot -> O O 
+. . .        O .        . . .        O O
 """
 shapes = [{(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)},
           {(0, 1), (0, 0), (2, 1), (1, 0), (1, 1)},
           {(0, 1), (1, 2), (0, 2), (1, 0), (1, 1)},
           {(0, 0), (2, 1), (2, 0), (1, 0), (1, 1)},
           {(1, 2), (0, 1), (0, 0), (1, 0), (1, 1)},
-          {(0, 1), (2, 1), (2, 0), (1, 0), (1, 1)},
+          {(0, 1), (0, 0), (2, 0), (1, 0), (1, 1)},
           {(0, 1), (1, 2), (0, 0), (1, 1), (0, 2)},
-          {(0, 1), (0, 0), (2, 0), (1, 0), (1, 1)}]
+          {(0, 1), (2, 1), (2, 0), (1, 0), (1, 1)}]
+
+
+def shape_factory(config=None):
+    if config is None:
+        return DotsSet(shapes[0])
+    else:
+        return DotsSet(shapes[0], config)
+
+
+"""
+grids:
+O . . O        O O O O        O O O O        O O O O
+O O O O rot -> O O O . rot -> O O O O rot -> . O O O
+O O O O        O O O .        O O O O        . O O O
+O O O O        O O O O        O . . O        O O O O
+ flip
+  |
+  v
+O O O .        O O O O        O O O O        . O O O
+O O O O rot -> O O O O rot -> O . O O rot -> O O . O
+O O . O        O . O O        O O O O        O O O O
+O O O O        O O O .        . O O O        O O O O
+"""
+grids_invalid_dots = [{(0, 1), (0, 2)}, {(1, 3), (2, 3)}, {(3, 2), (3, 1)}, {(2, 0), (1, 0)},
+                      {(0, 3), (2, 2)}, {(3, 3), (2, 1)}, {(3, 0), (1, 1)}, {(1, 2), (0, 0)}]
+grids_height, grids_width = 4, 4
+grids = [{(y, x) for y in range(grids_height) for x in range(grids_width)} - invalid
+         for invalid in grids_invalid_dots]
+
+def grid_factory(config=None):
+    if config is None:
+        return TwoSidedDotsGrid(grids_invalid_dots[0], grids_invalid_dots[4],
+                                grids_height, grids_width)
+    else:
+        return TwoSidedDotsGrid(grids_invalid_dots[0], grids_invalid_dots[4],
+                                grids_height, grids_width, config)
 
 
 class DotsSetInstantiationTest(unittest.TestCase):
@@ -41,12 +77,11 @@ class DotsSetInstantiationTest(unittest.TestCase):
         self.assertTrue(all(dot in shapes[0] for dot in dots_set))
 
 
-class DotsSetMovementsTest(unittest.TestCase):
-    
+class MovementTest:
     displacement = (3, 4)
 
     def setUp(self):
-        self.dots_set = DotsSet(shapes[0])
+        self.dots_set = self.shape_factory()
 
     def tearDown(self):
         self._test_reset()
@@ -64,36 +99,36 @@ class DotsSetMovementsTest(unittest.TestCase):
         self.assertSequenceEqual(self.dots_set, result_shape)
 
     def test_four_rotations_clockwise(self):
-        for shape in shapes[1:4] + [shapes[0]]:
+        for shape in self.shapes[1:4] + [self.shapes[0]]:
             self.do_movements_and_check_result('cwr', result_shape=shape)
 
     def test_four_rotations_counterclockwise(self):
-        for shape in shapes[3::-1]:
+        for shape in self.shapes[3::-1]:
             self.do_movements_and_check_result('ccwr', result_shape=shape)
 
     def test_two_flips(self):
-        for shape in shapes[4], shapes[0]:
+        for shape in self.shapes[4], self.shapes[0]:
             self.do_movements_and_check_result('f', result_shape=shape)
 
     def test_rotate_flip(self):
-        self.do_movements_and_check_result('ccwr', 'f', result_shape=shapes[7])
+        self.do_movements_and_check_result('ccwr', 'f', result_shape=self.shapes[5])
 
     def test_flip_rotate(self):
-        self.do_movements_and_check_result('f', 'ccwr', result_shape=shapes[5])
+        self.do_movements_and_check_result('f', 'ccwr', result_shape=self.shapes[7])
 
     def test_move(self):
         displaced_shape = {(y + self.displacement[0], x + self.displacement[1])
-                           for y, x in shapes[0]}
+                           for y, x in self.shapes[0]}
         self.do_movements_and_check_result('m', result_shape=displaced_shape)
 
     def test_flip_rotate_move(self):
         displaced_shape = {(y + self.displacement[0], x + self.displacement[1])
-                           for y, x in shapes[7]}
+                           for y, x in self.shapes[5]}
         self.do_movements_and_check_result('f', 'cwr', 'm', result_shape=displaced_shape)
 
     def test_move_flip_rotate(self):
         displaced_shape = {(y + self.displacement[0], x + self.displacement[1])
-                           for y, x in shapes[7]}
+                           for y, x in self.shapes[5]}
         self.do_movements_and_check_result('m', 'f', 'cwr', result_shape=displaced_shape)
 
     def test_move_flip_rotate_after_reset(self):
@@ -103,20 +138,18 @@ class DotsSetMovementsTest(unittest.TestCase):
 
     def _test_reset(self):
         self.dots_set.reset()
-        self.assertSequenceEqual(self.dots_set, shapes[0])
+        self.assertSequenceEqual(self.dots_set, self.shapes[0])
         self.assertEqual(self.dots_set.config, Config(flips=0, rotations=0, location=(0, 0)))
 
 
-class DotsSetConfigTest(unittest.TestCase):
-
+class ConfigTest:
     config1 = Config(flips=1, rotations=3, location=(4, 2))
-
     config2 = Config(flips=0, rotations=2, location=(3, 7))
 
     def setUp(self):
-        self.configured_set1 = DotsSet(shapes[0], self.config1)
-        self.configured_set2 = DotsSet(shapes[0], self.config2)
-        self.unconfigured_set = DotsSet(shapes[0])
+        self.configured_set1 = self.shape_factory(self.config1)
+        self.configured_set2 = self.shape_factory(self.config2)
+        self.unconfigured_set = self.shape_factory()
 
     def test_congifured_and_unconfigured_are_not_equal(self):
         self.assertNotEqual(self.configured_set1, self.unconfigured_set)
@@ -134,7 +167,7 @@ class DotsSetConfigTest(unittest.TestCase):
         for flips in range(config.flips):
             self.unconfigured_set.flip()
         for rotations in range(config.rotations):
-            self.unconfigured_set.rotate(clockwise=False if config.flips % 2 else True)
+            self.unconfigured_set.rotate(clockwise=True)
         self.unconfigured_set.move(config.location)
 
         self.assertEqual(self.unconfigured_set, configured_shape)
@@ -173,6 +206,24 @@ class DotsSetConfigTest(unittest.TestCase):
 
         self.configured_set1.config = config1
         self.assertEqual(self.configured_set1, snapshot1)
+
+
+class ShapeMovementTest(MovementTest, unittest.TestCase):
+    shapes = shapes
+    shape_factory = staticmethod(shape_factory)
+
+
+class ShapeConfigTest(ConfigTest, unittest.TestCase):
+    shape_factory = staticmethod(shape_factory)
+
+
+class GridMovementTest(MovementTest, unittest.TestCase):
+    shapes = grids
+    shape_factory = staticmethod(grid_factory)
+
+
+class GridConfigTest(ConfigTest, unittest.TestCase):
+    shape_factory = staticmethod(grid_factory)
 
 
 if __name__ == '__main__':
