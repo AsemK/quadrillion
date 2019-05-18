@@ -3,16 +3,22 @@ Config = namedtuple('Config', ['flips', 'rotations', 'location'])
 
 
 class DotsSet(Set):
-    def __init__(self, dots, initial_config=Config(flips=0, rotations=0, location=(0, 0))):
+    def __init__(self, dots, initial_config=Config(flips=0, rotations=0, location=(0, 0)), color='#FFFFFF'):
         if not self._are_valid_dots(dots):
             raise TypeError("dots must be of the form (int, int)")
         self._dots_set = self._initial_dots_set = frozenset(dots)
         self._height = max(pos[0] for pos in self._dots_set) + 1
         self._width = max(pos[1] for pos in self._dots_set) + 1
+        self._color = color
 
         self._config = Config(flips=0, rotations=0, location=(0, 0))
         self._initial_config = initial_config
         self.reset()
+
+    @classmethod
+    def _from_iterable(cls, iterable):
+        """new sets created as a result of Set operations (like __and__) are just simple sets"""
+        return frozenset(iterable)
 
     def __iter__(self):
         return iter(self._dots_set)
@@ -28,6 +34,10 @@ class DotsSet(Set):
 
     def __repr__(self):
         return type(self).__name__ + '({' + ", ".join({str(dot) for dot in self}) + '})'
+
+    @property
+    def color(self):
+        return self._color
 
     def reset(self):
         self.config = self._initial_config
@@ -98,6 +108,9 @@ class DotsSet(Set):
 
 
 class TwoSidedDotsGrid(DotsSet):
+    _white_side_color = '#FFFFFF'
+    _black_side_color = '#373535'
+
     def __init__(self, invalid_black, invalid_white, height=4, width=4,
                  initial_config=Config(flips=0, rotations=0, location=(0, 0))):
         if not self._are_valid_dots(set(invalid_black) | set(invalid_white), height, width):
@@ -106,18 +119,26 @@ class TwoSidedDotsGrid(DotsSet):
         self._height = height
         self._width = width
 
-        self._initial_black_dots = set(invalid_black)
-        self._initial_white_dots = set(invalid_white)
+        self._initial_black_dots = frozenset(invalid_black)
+        self._initial_white_dots = frozenset(invalid_white)
 
         self._config = Config(flips=0, rotations=0, location=(0, 0))
         self._initial_config = initial_config
         self.reset()
 
+    @property
+    def color(self):
+        if self.config.flips:
+            valid_color, invalid_color = self._black_side_color, self._white_side_color
+        else:
+            valid_color, invalid_color = self._white_side_color, self._black_side_color
+        return valid_color, invalid_color
+
     def _are_valid_dots(self, dots, height, width):
         return super()._are_valid_dots(dots) and all(y < height and x < width for y, x in dots)
 
     def _initial_dots_configured(self, config):
-        return frozenset(self._get_valid_dots_at(config))
+        return self._get_valid_dots_at(config)
 
     def _get_valid_dots_at(self, config):
         invalid_dots = super()._initial_dots_configured(config)

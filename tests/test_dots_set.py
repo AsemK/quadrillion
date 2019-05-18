@@ -52,6 +52,7 @@ grids_height, grids_width = 4, 4
 grids = [{(y, x) for y in range(grids_height) for x in range(grids_width)} - invalid
          for invalid in grids_invalid_dots]
 
+
 def grid_factory(config=None):
     if config is None:
         return TwoSidedDotsGrid(grids_invalid_dots[0], grids_invalid_dots[4],
@@ -187,7 +188,7 @@ class ConfigTest:
         self.configured_set1.reset()
         self.assertEqual(self.configured_set1, configured_set_before)
 
-    def test_configurations_as_momentos(self):
+    def test_configuration_as_momento(self):
         self.configured_set1.flip()
         self.configured_set1.move((3,5))
         self.configured_set1.rotate(clockwise=False)
