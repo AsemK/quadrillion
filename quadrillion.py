@@ -113,7 +113,7 @@ class QuadrillionStrategy:
     def pick(self, colleagues):
         picked = self.are_pickable(colleagues)
         if picked:
-            self._picked = colleagues
+            self._picked = set(colleagues)
             for colleague in colleagues:
                 self._picked_momento[colleague] = colleague.get_config()
                 for dot in colleague.get():

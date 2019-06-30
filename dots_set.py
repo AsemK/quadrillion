@@ -1,11 +1,12 @@
 from collections import Set, namedtuple
+from quadrillion_data import GRIDS, SHAPES
 Config = namedtuple('Config', ['flips', 'rotations', 'location'])
 
 
 class DotsSet(Set):
     def __init__(self, dots, initial_config=Config(flips=0, rotations=0, location=(0, 0)), color='#FFFFFF'):
         if not self._are_valid_dots(dots):
-            raise TypeError("dots must be of the form (int, int)")
+            raise TypeError("dots must be of the form (int y, int x) where y >= 0 and x >= 0")
         self._dots_set = self._initial_dots_set = frozenset(dots)
         self._height = max(pos[0] for pos in self._dots_set) + 1
         self._width = max(pos[1] for pos in self._dots_set) + 1
@@ -30,7 +31,7 @@ class DotsSet(Set):
         return len(self._dots_set)
 
     def __hash__(self):
-        return hash(self._dots_set)
+        return id(self)
 
     def __repr__(self):
         return type(self).__name__ + '({' + ", ".join({str(dot) for dot in self}) + '})'
@@ -114,7 +115,8 @@ class TwoSidedDotsGrid(DotsSet):
     def __init__(self, invalid_black, invalid_white, height=4, width=4,
                  initial_config=Config(flips=0, rotations=0, location=(0, 0))):
         if not self._are_valid_dots(set(invalid_black) | set(invalid_white), height, width):
-            raise TypeError("dots must be of the form (int, int)")
+            raise TypeError("dots must be of the form (int y, int x) " 
+                            "where 0 <= y < height and 0 <= x < width")
 
         self._height = height
         self._width = width
@@ -134,6 +136,10 @@ class TwoSidedDotsGrid(DotsSet):
             valid_color, invalid_color = self._white_side_color, self._black_side_color
         return valid_color, invalid_color
 
+    @property
+    def invalid_dots(self):
+        return self._get_invalid_dots_at(self.config)
+
     def _are_valid_dots(self, dots, height, width):
         return super()._are_valid_dots(dots) and all(y < height and x < width for y, x in dots)
 
@@ -141,13 +147,24 @@ class TwoSidedDotsGrid(DotsSet):
         return self._get_valid_dots_at(config)
 
     def _get_valid_dots_at(self, config):
-        invalid_dots = super()._initial_dots_configured(config)
-        all_dots = self._get_all_dots_at(config)
-        return all_dots - invalid_dots
+        return self._get_all_dots_at(config) - self._get_invalid_dots_at(config)
 
     def _get_all_dots_at(self, config):
         y0, x0 = config.location
         return {(y, x) for y in range(y0, y0 + self._height) for x in range(x0, x0 + self._width)}
 
+    def _get_invalid_dots_at(self, config):
+        return super()._initial_dots_configured(config)
+
     def _initial_dots_flipped(self, times):
         return self._initial_white_dots if times % 2 else self._initial_black_dots
+
+
+class DotsSetFactory:
+    def create_shapes(self):
+        return frozenset(DotsSet(dots, Config(*config), color)
+                         for dots, config, color in SHAPES.values())
+
+    def create_grids(self):
+        return frozenset(TwoSidedDotsGrid(invalid_black, invalid_wight, initial_config=Config(*config))
+                         for (invalid_black, invalid_wight), config in GRIDS.values())

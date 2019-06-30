@@ -1,5 +1,5 @@
 import unittest
-from dots_set import DotsSet, TwoSidedDotsGrid, Config
+from dots_set import DotsSet, TwoSidedDotsGrid, DotsSetFactory, Config
 
 """
 shapes:
@@ -37,9 +37,9 @@ grids:
 O . . O        O O O O        O O O O        O O O O
 O O O O rot -> O O O . rot -> O O O O rot -> . O O O
 O O O O        O O O .        O O O O        . O O O
-O O O O        O O O O        O . . O        O O O O
- flip
-  |
+O O O O        O O O O        O . . O        O O O O < valid dot
+ flip                           ^
+  |                             invalid dot
   v
 O O O .        O O O O        O O O O        . O O O
 O O O O rot -> O O O O rot -> O . O O rot -> O O . O
@@ -63,7 +63,7 @@ def grid_factory(config=None):
 
 
 class DotsSetInstantiationTest(unittest.TestCase):
-    def test_instantiation_with_non_dots_fails(self):
+    def test_instantiation_with_non_int_dots_fails(self):
         with self.assertRaises(TypeError):
             DotsSet({(2, 3), (3, 1), (4, 5.5)})
 
@@ -71,11 +71,36 @@ class DotsSetInstantiationTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             DotsSet({[2, 3], (3, 1), (4, 5)})
 
+    def test_instantiation_with_negative_dots_fails(self):
+        with self.assertRaises(TypeError):
+            DotsSet({(-2, 3), (3, 1), (4, 5)})
+
     def test_instantiation_with_dots_works(self):
         dots_set = DotsSet(shapes[0])
         self.assertEqual(len(dots_set), len(shapes[0]))
         self.assertTrue(all(dot in dots_set for dot in shapes[0]))
         self.assertTrue(all(dot in shapes[0] for dot in dots_set))
+
+
+class TwoSidedDotsGridInstantiationTest(unittest.TestCase):
+    def test_instantiation_with_non_int_dots_fails(self):
+        with self.assertRaises(TypeError):
+            TwoSidedDotsGrid({(2, 3), (3, 1.5)}, {(1, 2), (0, 0)}, 4, 4)
+
+    def test_instantiation_with_non_tuples_fails(self):
+        with self.assertRaises(TypeError):
+            TwoSidedDotsGrid({(2, 3), (3, 1)}, {[1, 2], (0, 0)}, 4, 4)
+
+    def test_instantiation_with_negative_dots_fails(self):
+        with self.assertRaises(TypeError):
+            TwoSidedDotsGrid({(-2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
+
+    def test_instantiation_with_dots_outside_size_fails(self):
+        with self.assertRaises(TypeError):
+            TwoSidedDotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 3, 3)
+
+    def test_instantiation_with_dots_works(self):
+        dots_set = TwoSidedDotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
 
 
 class MovementTest:
@@ -225,6 +250,23 @@ class GridMovementTest(MovementTest, unittest.TestCase):
 
 class GridConfigTest(ConfigTest, unittest.TestCase):
     shape_factory = staticmethod(grid_factory)
+
+
+class DotsSetFactoryTest(unittest.TestCase):
+    def setUp(self):
+        self.factory = DotsSetFactory()
+
+    def test_create_shapes(self):
+        shapes = self.factory.create_shapes()
+        self.assertEqual(type(shapes), frozenset)
+        for shape in shapes:
+            self.assertEqual(type(shape), DotsSet)
+
+    def test_create_grids(self):
+        grids = self.factory.create_grids()
+        self.assertEqual(type(grids), frozenset)
+        for grid in grids:
+            self.assertEqual(type(grid), TwoSidedDotsGrid)
 
 
 if __name__ == '__main__':
