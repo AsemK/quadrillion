@@ -1,4 +1,5 @@
 import tkinter as tk
+from quadrillion_exception import *
 CELL_Len = 48
 DOT_COLOR = '#999999'
 BG_COLOR = '#BBBBBB'
@@ -43,11 +44,26 @@ class QuadrillionGraphicDisplay:
             self.item_to_decorator_flyweight[item].set_dot_set(item)
             self.item_to_decorator_flyweight[item].draw()
 
+    def _pick_at(self, pos):
+        try:
+            cell = GraphicUtils.pos2cell(*pos)
+            picked = self.quadrillion.get_at(cell)
+            self.quadrillion.pick([picked])
+            self._do_after_pick(picked, cell)
+        except (NoItemException, IllegalPickException):
+            pass
+
+    def _release(self):
+        try:
+            self.quadrillion.release()
+        except IllegalReleaseException:
+            self.quadrillion.unpick()
+
     def _do_after_pick(self, picked, cell):
         self.picked = self.item_to_decorator_flyweight[picked]
         self.picked.set_dot_set(picked)
         self.picked.hook(cell)
-        self.canvas.tag_raise(self.picked.get_tag())
+        self.canvas.tag_raise(self.picked.tag)
         self.canvas.focus_set()
         self.canvas.bind("<Button-3>", self._on_cell_clicked)
         self.canvas.bind("<Motion>", self._on_mouse_motion)
@@ -59,14 +75,10 @@ class QuadrillionGraphicDisplay:
 
     def _on_cell_clicked(self, event):
         if self.picked is None:
-            cell = GraphicUtils.pos2cell(event.x, event.y)
-            picked = self.quadrillion.get_at(cell)
-            if picked:
-                if self.quadrillion.pick([picked]):
-                    self._do_after_pick(picked, cell)
+             self._pick_at((event.x, event.y))
         else:
             if event.num == 1:
-                self.quadrillion.release() or self.quadrillion.unpick()
+                self._release()
             else:
                 self.quadrillion.unpick()
             self._do_after_release()
@@ -80,14 +92,14 @@ class QuadrillionGraphicDisplay:
         key = event.keysym
         if key == 'r' or key == 'R':           self.quadrillion.reset()
         elif self.picked:
-            if key == 'Left':                  self.picked.rotate()
-            elif key == 'Right':               self.picked.rotate(-1)
+            if key == 'Left':                  self.picked.rotate(clockwise=False)
+            elif key == 'Right':               self.picked.rotate(clockwise=True)
             elif key == 'Up' or key == 'Down': self.picked.flip()
             elif key == 'w' or key == 'W':     self.picked.move((-1, 0))
             elif key == 'a' or key == 'A':     self.picked.move((0, -1))
             elif key == 's' or key == 'S':     self.picked.move((1, 0))
             elif key == 'd' or key == 'D':     self.picked.move((0, 1))
-            elif key == 'Return':              self.quadrillion.release() or self.quadrillion.unpick(); self._do_after_release()
+            elif key == 'Return':              self._release(); self._do_after_release()
             elif key == 'Escape':              self.quadrillion.unpick();  self._do_after_release()
             else: return
             if self.picked:
@@ -97,16 +109,17 @@ class QuadrillionGraphicDisplay:
 class GraphicDecoratorFlyweight:
     def __init__(self, canvas):
         self._canvas = canvas
-        self._dot_set = None
+        self._dots_set = None
 
     def set_dot_set(self, dot_set):
-        self._dot_set = dot_set
+        self._dots_set = dot_set
 
     def __getattr__(self, item):
-        return getattr(self._dot_set, item)
+        return getattr(self._dots_set, item)
 
-    def get_tag(self):
-        return str(id(self._dot_set)) + 't'
+    @property
+    def tag(self):
+        return str(id(self._dots_set)) + 't'
 
     def draw(self):
         pass
@@ -121,22 +134,22 @@ class GraphicDecoratorFlyweight:
 
 class GridGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
     def draw(self):
-        self._canvas.delete(self.get_tag())
-        start_cell = self.get_config()[2]
+        self._canvas.delete(self.tag)
+        start_cell = self.config.location
         end_cell = (start_cell[0] + 3, start_cell[1] + 3)
-        valid_color, invalid_color = self.get_color()
-        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.get_tag())
-        for dot in self.get_valid():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.get_tag())
-        for dot in self.get_invalid():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.get_tag())
+        valid_color, invalid_color = self.color
+        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.tag)
+        for dot in self.valid_dots:
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.tag)
+        for dot in self.invalid_dots:
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.tag)
 
 
 class ShapeGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
     def draw(self):
-        self._canvas.delete(self.get_tag())
-        for dot in self.get():
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.get_color(), tags=self.get_tag())
+        self._canvas.delete(self.tag)
+        for dot in self._dots_set:
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.color, tags=self.tag)
 
 
 class GraphicUtils:

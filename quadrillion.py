@@ -1,85 +1,93 @@
-from dot_set import DotShape, DotGrid
+from dots_set import DotsSetFactory
 from graphic_display import QuadrillionGraphicDisplay
-from quadrillion_data import GRIDS, SHAPES, DOT_SPACE_DIM
+from quadrillion_data import DOT_SPACE_DIM
+from quadrillion_exception import *
 
 
 class Quadrillion:
-    def __init__(self, dot_space_dim=DOT_SPACE_DIM, initial_configs=None):
+    def __init__(self, dot_space_dim=DOT_SPACE_DIM, dots_sets_factory=DotsSetFactory()):
         self.dot_space_dim = dot_space_dim
-        self.grids = set()
-        self.shapes = set()
-        self.views = []
-        if initial_configs is None: initial_configs = dict()
-
-        for grid in GRIDS:
-            config = initial_configs[grid] if grid in initial_configs else GRIDS[grid][1]
-            self.grids.add(DotGrid(*GRIDS[grid][0], *config))
-
-        for shape in SHAPES:
-            config = initial_configs[shape] if shape in initial_configs else SHAPES[shape][1]
-            self.shapes.add(DotShape(SHAPES[shape][0], *config, SHAPES[shape][2]))
-
-        self.grids = frozenset(self.grids)
-        self.shapes = frozenset(self.shapes)
+        self.grids = dots_sets_factory.create_grids()
+        self.shapes = dots_sets_factory.create_shapes()
+        self._views = []
         self.reset()
 
     def reset(self):
-        self.is_picked = False
-        self.grid_strategy = GridQuadrillionStrategy(self.dot_space_dim, self.grids)
-        self.shape_strategy = ShapeQuadrillionStrategy(self.dot_space_dim, self.shapes)
-        self.grid_strategy.reset(self.shape_strategy)
-        self.shape_strategy.reset(self.grid_strategy)
-        self.notify()
+        self._grid_strategy = GridQuadrillionStrategy(self.dot_space_dim, self.grids)
+        self._shape_strategy = ShapeQuadrillionStrategy(self.dot_space_dim, self.shapes)
+        self._grid_strategy.reset(self._shape_strategy)
+        self._shape_strategy.reset(self._grid_strategy)
+        self._is_picked = False
+        self._picked_items_momentos = []
+        self._notify()
 
     def pick(self, items):
-        if not self.is_picked:
-            shapes, grids = self._separate_shapes_grids(items)
-            if self.shape_strategy.pick(shapes) and self.grid_strategy.pick(grids):
-                self.is_picked = True
-            else:
-                self.unpick()
-        return self.is_picked
-
-    def unpick(self):
-        self.grid_strategy.unpick()
-        self.shape_strategy.unpick()
-        self.is_picked = False
-        self.notify()
+        if not self._is_picked:
+            try:
+                shapes, grids = self._separate_shapes_grids(items)
+                self._shape_strategy.pick(shapes)
+                self._grid_strategy.pick(grids)
+                self._capture_items_momentos(items)
+                self._is_picked = True
+            except IllegalPickException:
+                self._shape_strategy.release()
+                raise
+        else:
+            raise StateException('Cannot pick before releasing already picked items!')
 
     def release(self):
-        if self.is_picked:
-            if self.grid_strategy.is_release_possible() and self.shape_strategy.is_release_possible():
-                self.grid_strategy.release()
-                self.shape_strategy.release()
-                self.is_picked = False
-                self.notify()
-        return not self.is_picked
+        if self._is_picked:
+            picked_grids = self._grid_strategy.picked_items
+            try:
+                self._grid_strategy.release()
+                self._shape_strategy.release()
+                self._is_picked = False
+                self._notify()
+            except IllegalReleaseException:
+                self._grid_strategy.pick(picked_grids)
+                raise
+        else:
+            raise StateException('Cannot release while no picked items!')
+
+    def unpick(self):
+        if self._is_picked:
+            try:
+                self._restore_items_momentos()
+                self.release()
+            except IllegalReleaseException:
+                raise QuadrillionException('Software Error: momentos were not'
+                                           ' captured at legal configurations')
+        else:
+            raise StateException('Cannot unpick while no picked items!')
 
     def get_at(self, dot):
-        for strategy in self.shape_strategy, self.grid_strategy:
+        for strategy in self._shape_strategy, self._grid_strategy:
             item = strategy.get_at(dot)
             if item:
                 return item
-        return None
-
-    def attach_view(self, view):
-        self.views.append(view)
-
-    def notify(self, item=None):
-        for view in self.views:
-            view.update(item)
+        raise NoItemException('There is no item at dot {}'.format(dot))
 
     def is_won(self):
-        return len(self.get_released_empty_grid_dots()) == 0
+        return not self._is_picked and len(self.released_empty_grids_dots) == 0
 
-    def get_released_grid_dots(self):
-        return self.grid_strategy.get_released_dots()
+    def attach_view(self, view):
+        self._views.append(view)
 
-    def get_released_empty_grid_dots(self):
-        return self.grid_strategy.get_released_valid_dots() - self.shape_strategy.get_released_dots()
+    @property
+    def released_grids_dots(self):
+        return self._grid_strategy.released_dots
 
-    def get_released_unplaced_shapes(self):
-        return self.shape_strategy.get_released_unplaced_shapes()
+    @property
+    def released_empty_grids_dots(self):
+        return self._grid_strategy.released_valid_dots - self._shape_strategy.released_dots
+
+    @property
+    def released_unplaced_shapes(self):
+        return self._shape_strategy.released_unplaced_shapes
+
+    def _notify(self, item=None):
+        for view in self._views:
+            view.update(item)
 
     def _separate_shapes_grids(self, items):
         items = set(items)
@@ -87,115 +95,110 @@ class Quadrillion:
         grids = self.grids & items
         return shapes, grids
 
+    def _capture_items_momentos(self, items):
+        self._picked_items_momentos = [(item, item.config) for item in items]
+
+    def _restore_items_momentos(self):
+        for item, config in self._picked_items_momentos:
+            item.config = config
+
 
 class QuadrillionStrategy:
     def __init__(self, dot_space_dim, colleagues):
         self._dot_space_dim = dot_space_dim
         self._colleagues = colleagues
-        self._colleagues_dots = dict()
         self._other_strategy = None
-        self._picked = set(colleagues)
-        self._picked_momento = dict()
+        self._picked = set(self._colleagues)
 
     def reset(self, other_strategy):
         self._other_strategy = other_strategy
-        if self.is_release_possible():
+        for item in self._colleagues:
+            item.reset()
+        try:
             self.release()
-        # TODO: Add InitialState exception here
+        except IllegalReleaseException:
+            raise InitialConfigurationsException('Initial configuration of items are not legal!')
 
     def release(self):
-        for colleague in self._picked:
-            for dot in colleague.get():
-                self._colleagues_dots[dot] = colleague
-        self._picked = set()
-        self._picked_momento = dict()
+        if self.is_release_possible():
+            self._picked = set()
+        else:
+            raise IllegalReleaseException('It is not possible to release the picked'
+                                          ' items with their current configuration!')
 
     def pick(self, colleagues):
-        picked = self.are_pickable(colleagues)
-        if picked:
+        if self.are_pickable(colleagues):
             self._picked = set(colleagues)
-            for colleague in colleagues:
-                self._picked_momento[colleague] = colleague.get_config()
-                for dot in colleague.get():
-                    del self._colleagues_dots[dot]
-        return picked
-
-    def unpick(self):
-        for colleague, momento in self._picked_momento.items():
-            colleague.set_config(*momento)
-        self.release()
+        else:
+            raise IllegalPickException('It is not possible to pick the selected items!')
 
     def get_at(self, dot):
-        if dot in self._colleagues_dots:
-            return self._colleagues_dots[dot]
+        for dots_set in self.released_items:
+            if dot in dots_set:
+                return dots_set
         return None
 
-    def get_released_dots(self):
-        return set(self._colleagues_dots.keys())
-
     def is_release_possible(self):
-        return all(self.is_on_board(colleague) and not self.is_overlapping_released_dots(colleague)
+        return all(self.is_on_board(colleague) and not self.is_overlapping_released_items(colleague)
                    for colleague in self._picked) and self._are_separated(self._picked)
 
     def are_pickable(self, colleagues):
         return True
 
     def is_on_board(self, item):
-        return all(0 <= y < self._dot_space_dim[0] and 0 <= x < self._dot_space_dim[1] for (y, x) in item.get())
+        return all(0 <= y < self._dot_space_dim[0] and 0 <= x < self._dot_space_dim[1] for (y, x) in item)
 
-    def is_overlapping_released_dots(self, item):
-        return any(dot in self.get_released_dots() for dot in item.get())
+    def is_overlapping_released_items(self, item):
+        return any(any(dot in other_item for other_item in self.released_items) for dot in item)
 
     def _get_all_dots_list(self, items):
-        dots_list = []
-        for item in items:
-            dots_list.extend(item.get())
-        return dots_list
+        return [dot for item in items for dot in item]
 
     def _are_separated(self, items):
         dots_list = self._get_all_dots_list(items)
         return len(dots_list) == len(set(dots_list))
 
+    @property
+    def picked_items(self):
+        return self._picked
+
+    @property
+    def released_items(self):
+        return self._colleagues - self._picked
+
+    @property
+    def released_dots(self):
+        return set(self._get_all_dots_list(self.released_items))
+
 
 class GridQuadrillionStrategy(QuadrillionStrategy):
     def is_release_possible(self):
         return QuadrillionStrategy.is_release_possible(self)\
-               and not any(self._other_strategy.is_overlapping_released_dots(grid) for grid in self._picked)
+               and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in self._picked)
 
     def are_pickable(self, grids):
         return QuadrillionStrategy.are_pickable(self, grids)\
-               and not any(self._other_strategy.is_overlapping_released_dots(grid) for grid in grids)
+               and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in grids)
 
-    def is_on_all_valid(self, item):
-        valid = self._get_valid_dots(self._colleagues)
-        return all(dot in valid for dot in item.get())
+    def is_on_released_valid_dots(self, item):
+        return all(dot in self.released_valid_dots for dot in item)
 
-    def is_overlapping_all_dots(self, item):
-        all_dots = self._get_all_dots_list(self._colleagues)
-        return any(dot in set(all_dots) for dot in item.get())
-
-    def get_released_valid_dots(self):
-        return self._get_valid_dots(self._colleagues - self._picked)
-
-    def _get_valid_dots(self, grids):
-        valid = set()
-        for grid in grids:
-            valid |= grid.get_valid()
-        return valid
+    @property
+    def released_valid_dots(self):
+        return {dot for grid in self.released_items for dot in grid.valid_dots}
 
 
 class ShapeQuadrillionStrategy(QuadrillionStrategy):
     def is_release_possible(self):
         return QuadrillionStrategy.is_release_possible(self)\
-               and all(self._other_strategy.is_on_all_valid(shape)
-                       or not self._other_strategy.is_overlapping_all_dots(shape) for shape in self._picked)
+               and all(self._other_strategy.is_on_released_valid_dots(shape)
+                       or not self._other_strategy.is_overlapping_released_items(shape)
+                       for shape in self._picked)
 
-    def get_released_unplaced_shapes(self):
-        unplaced = set(self._colleagues) - self._picked
-        for shape in unplaced:
-            if self._other_strategy.is_overlapping_released_dots(shape):
-                unplaced.remove(shape)
-        return unplaced
+    @property
+    def released_unplaced_shapes(self):
+        return {shape for shape in self.released_items
+                if not self._other_strategy.is_overlapping_released_items(shape)}
 
 
 if __name__ == '__main__':

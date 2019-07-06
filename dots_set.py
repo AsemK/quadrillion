@@ -137,6 +137,10 @@ class TwoSidedDotsGrid(DotsSet):
         return valid_color, invalid_color
 
     @property
+    def valid_dots(self):
+        return self._get_valid_dots_at(self.config)
+
+    @property
     def invalid_dots(self):
         return self._get_invalid_dots_at(self.config)
 
@@ -144,7 +148,7 @@ class TwoSidedDotsGrid(DotsSet):
         return super()._are_valid_dots(dots) and all(y < height and x < width for y, x in dots)
 
     def _initial_dots_configured(self, config):
-        return self._get_valid_dots_at(config)
+        return self._get_all_dots_at(config)
 
     def _get_valid_dots_at(self, config):
         return self._get_all_dots_at(config) - self._get_invalid_dots_at(config)
