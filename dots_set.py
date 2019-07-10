@@ -1,4 +1,5 @@
-from collections import Set, namedtuple
+from collections import namedtuple
+from collections.abc import Set
 from quadrillion_data import GRIDS, SHAPES
 Config = namedtuple('Config', ['flips', 'rotations', 'location'])
 

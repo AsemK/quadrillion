@@ -104,15 +104,15 @@ class Quadrillion:
 
 
 class QuadrillionStrategy:
-    def __init__(self, dot_space_dim, colleagues):
+    def __init__(self, dot_space_dim, items):
         self._dot_space_dim = dot_space_dim
-        self._colleagues = colleagues
+        self._items = items
         self._other_strategy = None
-        self._picked = set(self._colleagues)
+        self._picked = set(self._items)
 
     def reset(self, other_strategy):
         self._other_strategy = other_strategy
-        for item in self._colleagues:
+        for item in self._items:
             item.reset()
         try:
             self.release()
@@ -126,23 +126,23 @@ class QuadrillionStrategy:
             raise IllegalReleaseException('It is not possible to release the picked'
                                           ' items with their current configuration!')
 
-    def pick(self, colleagues):
-        if self.are_pickable(colleagues):
-            self._picked = set(colleagues)
+    def pick(self, items):
+        if self.are_pickable(items):
+            self._picked = set(items)
         else:
             raise IllegalPickException('It is not possible to pick the selected items!')
 
     def get_at(self, dot):
-        for dots_set in self.released_items:
-            if dot in dots_set:
-                return dots_set
+        for item in self.released_items:
+            if dot in item:
+                return item
         return None
 
     def is_release_possible(self):
-        return all(self.is_on_board(colleague) and not self.is_overlapping_released_items(colleague)
-                   for colleague in self._picked) and self._are_separated(self._picked)
+        return all(self.is_on_board(item) and not self.is_overlapping_released_items(item)
+                   for item in self.picked_items) and self._are_separated(self.picked_items)
 
-    def are_pickable(self, colleagues):
+    def are_pickable(self, items):
         return True
 
     def is_on_board(self, item):
@@ -164,7 +164,7 @@ class QuadrillionStrategy:
 
     @property
     def released_items(self):
-        return self._colleagues - self._picked
+        return self._items - self._picked
 
     @property
     def released_dots(self):
@@ -174,7 +174,7 @@ class QuadrillionStrategy:
 class GridQuadrillionStrategy(QuadrillionStrategy):
     def is_release_possible(self):
         return QuadrillionStrategy.is_release_possible(self)\
-               and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in self._picked)
+               and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in self.picked_items)
 
     def are_pickable(self, grids):
         return QuadrillionStrategy.are_pickable(self, grids)\
@@ -193,7 +193,7 @@ class ShapeQuadrillionStrategy(QuadrillionStrategy):
         return QuadrillionStrategy.is_release_possible(self)\
                and all(self._other_strategy.is_on_released_valid_dots(shape)
                        or not self._other_strategy.is_overlapping_released_items(shape)
-                       for shape in self._picked)
+                       for shape in self.picked_items)
 
     @property
     def released_unplaced_shapes(self):

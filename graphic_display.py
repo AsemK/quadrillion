@@ -44,35 +44,6 @@ class QuadrillionGraphicDisplay:
             self.item_to_decorator_flyweight[item].set_dot_set(item)
             self.item_to_decorator_flyweight[item].draw()
 
-    def _pick_at(self, pos):
-        try:
-            cell = GraphicUtils.pos2cell(*pos)
-            picked = self.quadrillion.get_at(cell)
-            self.quadrillion.pick([picked])
-            self._do_after_pick(picked, cell)
-        except (NoItemException, IllegalPickException):
-            pass
-
-    def _release(self):
-        try:
-            self.quadrillion.release()
-        except IllegalReleaseException:
-            self.quadrillion.unpick()
-
-    def _do_after_pick(self, picked, cell):
-        self.picked = self.item_to_decorator_flyweight[picked]
-        self.picked.set_dot_set(picked)
-        self.picked.hook(cell)
-        self.canvas.tag_raise(self.picked.tag)
-        self.canvas.focus_set()
-        self.canvas.bind("<Button-3>", self._on_cell_clicked)
-        self.canvas.bind("<Motion>", self._on_mouse_motion)
-
-    def _do_after_release(self):
-        self.picked = None
-        self.canvas.unbind("<Button-3>")
-        self.canvas.unbind("<Motion>")
-
     def _on_cell_clicked(self, event):
         if self.picked is None:
              self._pick_at((event.x, event.y))
@@ -104,6 +75,35 @@ class QuadrillionGraphicDisplay:
             else: return
             if self.picked:
                 self.picked.draw()
+
+    def _pick_at(self, pos):
+        try:
+            cell = GraphicUtils.pos2cell(*pos)
+            picked = self.quadrillion.get_at(cell)
+            self.quadrillion.pick([picked])
+            self._do_after_pick(picked, cell)
+        except (NoItemException, IllegalPickException):
+            pass
+
+    def _release(self):
+        try:
+            self.quadrillion.release()
+        except IllegalReleaseException:
+            self.quadrillion.unpick()
+
+    def _do_after_pick(self, picked, cell):
+        self.picked = self.item_to_decorator_flyweight[picked]
+        self.picked.set_dot_set(picked)
+        self.picked.hook(cell)
+        self.canvas.tag_raise(self.picked.tag)
+        self.canvas.focus_set()
+        self.canvas.bind("<Button-3>", self._on_cell_clicked)
+        self.canvas.bind("<Motion>", self._on_mouse_motion)
+
+    def _do_after_release(self):
+        self.picked = None
+        self.canvas.unbind("<Button-3>")
+        self.canvas.unbind("<Motion>")
 
 
 class GraphicDecoratorFlyweight:
