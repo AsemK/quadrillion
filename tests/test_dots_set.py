@@ -60,7 +60,9 @@ class TestDotsSetInstantiation:
 
     def test_instantiation_with_dots_works(self):
         dots_set = DotsSet({(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)})
-        assert dots_set == {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)}
+        color = dots_set.color
+        assert all(dot in dots_set for dot in {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)})
+
 
 
 class TestTwoSidedDotsGridInstantiation:
@@ -82,8 +84,13 @@ class TestTwoSidedDotsGridInstantiation:
 
     def test_instantiation_with_dots_works(self):
         dots_set = TwoSidedDotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
+        color1 = dots_set.color
         assert len(dots_set) == 4*4
         assert dots_set.invalid_dots == {(2, 3), (3, 1)}
+        dots_set.flip()
+        color2 = dots_set.color
+        assert dots_set.invalid_dots == {(1, 2), (0, 0)}
+        assert color1 != color2
 
 
 class TestMovement:
@@ -277,6 +284,11 @@ class TestConfig:
         self.configured_set1.config = config1
         assert self.take_dots_equals_snapshot(self.configured_set1, snapshot1)
 
+    def test_dots_sets_hash_does_not_change(self):
+        a = hash(self.unconfigured_set)
+        self.unconfigured_set.config = self.configured_set1.config
+        assert a == hash(self.unconfigured_set)
+
 
 class TestDotsSetFactory:
     @pytest.fixture(scope='class')
@@ -294,3 +306,7 @@ class TestDotsSetFactory:
         assert type(grids) == frozenset
         for grid in grids:
             assert type(grid) == TwoSidedDotsGrid
+
+
+if __name__ == '__main__':
+    pytest.main()

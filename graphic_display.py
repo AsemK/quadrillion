@@ -11,7 +11,7 @@ class QuadrillionGraphicDisplay:
         self.quadrillion = quadrillion_game
         self.quadrillion.attach_view(self)
 
-        self.parent.resizable(0,0)
+        self.parent.resizable(0, 0)
         self.parent.title('SmartGames Quadrillion')
 
         vertical_cells, horizontal_cells = self.quadrillion.dot_space_dim
@@ -19,13 +19,8 @@ class QuadrillionGraphicDisplay:
                                 bg=BG_COLOR, highlightthickness=0)
         self.canvas.grid(rowspan=int(vertical_cells/2), columnspan=int(horizontal_cells/2), padx=2, pady=2)
 
-        self.item_to_decorator_flyweight = dict()
         self.grid_decorator = GridGraphicDecoratorFlyweight(self.canvas)
         self.shape_decorator = ShapeGraphicDecoratorFlyweight(self.canvas)
-        for grid in self.quadrillion.grids:
-            self.item_to_decorator_flyweight[grid] = self.grid_decorator
-        for shape in self.quadrillion.shapes:
-            self.item_to_decorator_flyweight[shape] = self.shape_decorator
 
         self.update()
         self.picked = None
@@ -37,12 +32,10 @@ class QuadrillionGraphicDisplay:
     def update(self, item=None):
         if item is None:
             self._do_after_release()
-            for item in self.item_to_decorator_flyweight:
-                self.item_to_decorator_flyweight[item].set_dot_set(item)
-                self.item_to_decorator_flyweight[item].draw()
+            for item in list(self.quadrillion.grids) + list(self.quadrillion.shapes):
+                self._decorate(item).draw()
         else:
-            self.item_to_decorator_flyweight[item].set_dot_set(item)
-            self.item_to_decorator_flyweight[item].draw()
+            self._decorate(item).draw()
 
     def _on_cell_clicked(self, event):
         if self.picked is None:
@@ -92,8 +85,7 @@ class QuadrillionGraphicDisplay:
             self.quadrillion.unpick()
 
     def _do_after_pick(self, picked, cell):
-        self.picked = self.item_to_decorator_flyweight[picked]
-        self.picked.set_dot_set(picked)
+        self.picked = self._decorate(picked)
         self.picked.hook(cell)
         self.canvas.tag_raise(self.picked.tag)
         self.canvas.focus_set()
@@ -104,6 +96,14 @@ class QuadrillionGraphicDisplay:
         self.picked = None
         self.canvas.unbind("<Button-3>")
         self.canvas.unbind("<Motion>")
+
+    def _decorate(self, item):
+        if item in self.quadrillion.shapes:
+            self.shape_decorator.set_dot_set(item)
+            return self.shape_decorator
+        elif item in self.quadrillion.grids:
+            self.grid_decorator.set_dot_set(item)
+            return self.grid_decorator
 
 
 class GraphicDecoratorFlyweight:
@@ -160,6 +160,7 @@ class GraphicUtils:
         outline = kwargs.get('outline', '')
         canvas.create_arc(GraphicUtils.cell2bbox(cell, 0, cell_span),
                           extent=extent, style=style, outline=outline, **kwargs)
+        canvas.create_text(GraphicUtils.cell2pos(*cell), text=str(cell))
 
     @staticmethod
     def rectangle_over_cells(canvas, start_cell, end_cell, cell_span=1, **kwargs):

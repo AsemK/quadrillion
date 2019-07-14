@@ -74,12 +74,16 @@ class Quadrillion:
         self._views.append(view)
 
     @property
-    def released_grids_dots(self):
-        return self._grid_strategy.released_dots
+    def released_grids(self):
+        return self._grid_strategy.released_items
 
     @property
     def released_empty_grids_dots(self):
         return self._grid_strategy.released_valid_dots - self._shape_strategy.released_dots
+
+    @property
+    def released_shapes(self):
+        return self._shape_strategy.released_items
 
     @property
     def released_unplaced_shapes(self):
@@ -177,8 +181,7 @@ class GridQuadrillionStrategy(QuadrillionStrategy):
                and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in self.picked_items)
 
     def are_pickable(self, grids):
-        return QuadrillionStrategy.are_pickable(self, grids)\
-               and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in grids)
+        return set(grids) <= self.picked_items or not any(self._other_strategy.is_overlapping_released_items(grid) for grid in grids)
 
     def is_on_released_valid_dots(self, item):
         return all(dot in self.released_valid_dots for dot in item)
@@ -199,8 +202,3 @@ class ShapeQuadrillionStrategy(QuadrillionStrategy):
     def released_unplaced_shapes(self):
         return {shape for shape in self.released_items
                 if not self._other_strategy.is_overlapping_released_items(shape)}
-
-
-if __name__ == '__main__':
-    quadrillion = Quadrillion()
-    view = QuadrillionGraphicDisplay(quadrillion)
