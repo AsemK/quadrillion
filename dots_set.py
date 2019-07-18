@@ -20,7 +20,7 @@ class DotsSet(Set):
     @classmethod
     def _from_iterable(cls, iterable):
         """new sets created as a result of Set operations (like __and__) are just simple sets"""
-        return frozenset(iterable)
+        return set(iterable)
 
     def __iter__(self):
         return iter(self._dots_set)
@@ -55,6 +55,27 @@ class DotsSet(Set):
         dy, dx = displacement
         y, x = self.config.location
         self.config = self.config._replace(location=(y+dy, x+dx))
+
+    def get_unique_configs_at(self, location):
+        if not hasattr(self, 'unique_configs'):
+            dots_sets = []
+            self.unique_configs = set()
+            for flip in range(2):
+                for rotation in range(4):
+                    config = Config(flip, rotation, (0, 0))
+                    dots_set = self._initial_dots_configured(config)
+                    if not dots_set in dots_sets:
+                        dots_sets.append(dots_set)
+                        self.unique_configs.add(config)
+        return {config._replace(location=location) for config in self.unique_configs}
+
+    def set_dots(self, dots):
+        location = min(y for y, x in dots), min(x for y, x in dots)
+        for config in self.get_unique_configs_at(location):
+            if self._initial_dots_configured(config) == dots:
+                self.config = config
+                return
+        raise ValueError('the input dots do not correspond to this dots_set')
 
     @property
     def config(self):

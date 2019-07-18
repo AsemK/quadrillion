@@ -160,7 +160,6 @@ class GraphicUtils:
         outline = kwargs.get('outline', '')
         canvas.create_arc(GraphicUtils.cell2bbox(cell, 0, cell_span),
                           extent=extent, style=style, outline=outline, **kwargs)
-        canvas.create_text(GraphicUtils.cell2pos(*cell), text=str(cell))
 
     @staticmethod
     def rectangle_over_cells(canvas, start_cell, end_cell, cell_span=1, **kwargs):
