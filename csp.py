@@ -85,8 +85,7 @@ class CSPSolver:
         Selects the next variable to be assigned by the minimum remaining values heuristic
         :return: the variable with the minimum remaining values
         """
-        varables_enum = dict(enumerate(set(domains.keys()) - set(assignments.keys())))
-        return varables_enum[min([(len(domains[var]), i) for i,var in varables_enum.items()])[1]]
+        return min(set(domains.keys()) - set(assignments.keys()), key=lambda var: len(domains[var]))
 
     def back_tracking_search(self, assignments, domains):
         """

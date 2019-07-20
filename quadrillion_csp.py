@@ -36,7 +36,9 @@ class QuadrillionCSPAdapter(CSP):
         for variable in self._variables:
             domain = []
             for loc in square_dots:
-                domain.extend(variable.get_unique_configs_at(loc))
+                for config in variable.get_unique_configs_at(loc):
+                    if self.is_consistent_assignment((variable, config)):
+                        domain.append(config)
             domains[variable] = domain
         return domains
 
