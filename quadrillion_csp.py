@@ -34,11 +34,11 @@ class QuadrillionCSPAdapter(CSP):
         domains = dict()
         square_dots = self._get_smallest_square_over_dots(self._empty_grids_dots)
         for variable in self._variables:
-            domain = []
+            domain = set()
             for loc in square_dots:
                 for config in variable.get_unique_configs_at(loc):
                     if self.is_consistent_assignment((variable, config)):
-                        domain.append(config)
+                        domain.add(config)
             domains[variable] = domain
         return domains
 

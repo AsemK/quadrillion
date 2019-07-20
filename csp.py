@@ -71,10 +71,10 @@ class CSPSolver:
         new_domains = dict()
         self.csp.set_current_assignments(assignments)
         for var in set(domains.keys()) - set(assignments.keys()):
-            new_domains[var] = []
+            new_domains[var] = set()
             for val in domains[var]:
                 if self.csp.is_consistent_assignment((var, val)):
-                    new_domains[var].append(val)
+                    new_domains[var].add(val)
             if not new_domains[var]:
                 return None
         return new_domains
@@ -95,7 +95,7 @@ class CSPSolver:
         """
         var = self.select_unassigned_variable(assignments, domains)
         if len(assignments) == len(self.vars)-1:
-            assignments[var] = domains[var][0]
+            assignments[var] = domains[var].pop()
             return assignments
         self.iterations += 1  # search iterations counter
         for val in domains[var]:
