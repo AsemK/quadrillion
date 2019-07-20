@@ -63,7 +63,7 @@ class DotsSet(Set):
             for flip in range(2):
                 for rotation in range(4):
                     config = Config(flip, rotation, (0, 0))
-                    dots_set = self._initial_dots_configured(config)
+                    dots_set = self.configured(config)
                     if not dots_set in dots_sets:
                         dots_sets.append(dots_set)
                         self.unique_configs.add(config)
@@ -72,7 +72,7 @@ class DotsSet(Set):
     def set_dots(self, dots):
         location = min(y for y, x in dots), min(x for y, x in dots)
         for config in self.get_unique_configs_at(location):
-            if self._initial_dots_configured(config) == dots:
+            if self.configured(config) == dots:
                 self.config = config
                 return
         raise ValueError('the input dots do not correspond to this dots_set')
@@ -84,14 +84,14 @@ class DotsSet(Set):
     @config.setter
     def config(self, config):
         self._config = config._replace(flips=config.flips % 2, rotations=config.rotations % 4)
-        self._dots_set = frozenset(self._initial_dots_configured(self.config))
+        self._dots_set = frozenset(self.configured(self.config))
 
     def _are_valid_dots(self, dots):
         return all(len(dot) == 2 and isinstance(dot, tuple)
                    and all(isinstance(axis, int) and axis >= 0 for axis in dot)
                    for dot in dots)
 
-    def _initial_dots_configured(self, config):
+    def configured(self, config):
         flipped_dots = self._initial_dots_flipped(config.flips)
         rotated_dots = self._rotated_clockwise(flipped_dots, config.rotations)
         moved_dots = self._moved(rotated_dots, config.location)
@@ -169,7 +169,7 @@ class TwoSidedDotsGrid(DotsSet):
     def _are_valid_dots(self, dots, height, width):
         return super()._are_valid_dots(dots) and all(y < height and x < width for y, x in dots)
 
-    def _initial_dots_configured(self, config):
+    def configured(self, config):
         return self._get_all_dots_at(config)
 
     def _get_valid_dots_at(self, config):
@@ -180,7 +180,7 @@ class TwoSidedDotsGrid(DotsSet):
         return {(y, x) for y in range(y0, y0 + self._height) for x in range(x0, x0 + self._width)}
 
     def _get_invalid_dots_at(self, config):
-        return super()._initial_dots_configured(config)
+        return super().configured(config)
 
     def _initial_dots_flipped(self, times):
         return self._initial_white_dots if times % 2 else self._initial_black_dots
