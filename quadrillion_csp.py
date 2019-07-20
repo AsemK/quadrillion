@@ -87,14 +87,25 @@ def connected_dots_sets(dots_set):
 
 
 def valid_pos_set_component(nr_empty_dots, nr_empty_connected_dots):
-    if ((nr_empty_dots % 5 == 0 and nr_empty_connected_dots % 5 == 0)        # one of the variables should have 5 dots
-    or (nr_empty_dots % 5 % 4 == 0 and nr_empty_connected_dots % 5 % 4 == 0) # one of the variables should be four
-    or (nr_empty_dots % 5 % 3 == 0 and nr_empty_connected_dots % 5 % 3 == 0) # one of the variables should be three
-    # one variable should be 4 and one should be three
-    or ((57 - nr_empty_dots) % 5 == 0 and (nr_empty_connected_dots % 5 % 4 % 3 == 0 or ((nr_empty_connected_dots - 7) >= 0 and (nr_empty_connected_dots - 7) % 5 == 0)))):
-        return True
-    else:
-        return False
+                # empty_connected_dots should have 5 dots
+    return not ((nr_empty_dots % 5 == 0 and not nr_empty_connected_dots % 5 == 0)
+                # empty_connected_dots should have 5 or 4 dots
+            or ((nr_empty_dots - 4) % 5 == 0 and not nr_empty_connected_dots % 5 % 4 == 0)
+                # empty_connected_dots should have 5 or 3 dots
+            or ((nr_empty_dots - 3) % 5 == 0 and not nr_empty_connected_dots % 5 % 3 == 0)
+                # empty_connected_dots should have 5, 4 or 3 dots
+            or ((nr_empty_dots - 7) % 5 == 0 and not (nr_empty_connected_dots % 5 % 4 % 3 == 0
+                                                      or ((nr_empty_connected_dots - 7) >= 0
+                                                          and (nr_empty_connected_dots - 7) % 5 == 0))))
+
+
+def valid_pos_set_new(nr_empty_connected_dots, variable_lengths):
+    variable_lengths = set(variable_lengths)
+    possible_dots_lengths = variable_lengths | {a + b for a in variable_lengths for b in variable_lengths
+                                                if a != b}
+    while 5 in variable_lengths and nr_empty_connected_dots not in possible_dots_lengths and nr_empty_connected_dots>0:
+        nr_empty_connected_dots -= 5
+    return nr_empty_connected_dots >= 0
 
 
 if __name__ == '__main__':
