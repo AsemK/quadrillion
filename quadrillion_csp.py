@@ -26,24 +26,25 @@ class QuadrillionCSPAdapter(CSP):
 
     def is_consistent_assignment(self, assignment):
         shape, dots = assignment
-        return dots <= self._current_empty_grids_dots\
-               and is_connected(self._current_empty_grids_dots - dots)
+        return self._is_on_empty_dots(dots, self._current_empty_grids_dots) \
+               and self._is_valid_empty_dots(self._current_empty_grids_dots - dots)
 
     def _extract_domains(self):
-        self.set_current_assignments(dict())
         domains = dict()
-        square_dots = self._get_smallest_square_over_dots(self._empty_grids_dots)
-        for variable in self._variables:
-            domain = set()
-            for loc in square_dots:
-                for config in variable.get_unique_configs_at(loc):
-                    dots = frozenset(variable.configured(config))
-                    if self.is_consistent_assignment((variable, dots)):
-                        domain.add(dots)
-            domains[variable] = domain
+        if self._is_valid_empty_dots(self._empty_grids_dots):
+            square_dots = self._get_smallest_square_over_dots(self._empty_grids_dots)
+            for variable in self._variables:
+                domain = set()
+                for loc in square_dots:
+                    for config in variable.get_unique_configs_at(loc):
+                        dots = frozenset(variable.configured(config))
+                        if self._is_on_empty_dots(dots, self._empty_grids_dots):
+                            domain.add(dots)
+                domains[variable] = domain
         return domains
 
-    def _get_smallest_square_over_dots(self, dots):
+    @staticmethod
+    def _get_smallest_square_over_dots(dots):
         y = min(h for h, w in dots)
         x = min(w for h, w in dots)
         height = max(h for h, w in dots) + 1
@@ -58,13 +59,31 @@ class QuadrillionCSPAdapter(CSP):
             shape.set_dots(solution[shape])
         self._quadrillion.release()
 
+    @staticmethod
+    def _is_on_empty_dots(dots, empty_dots):
+        return dots <= empty_dots
 
-def is_connected(empty_dots):
-    nr_empty_dots = len(empty_dots)
-    for connected_dots_set in connected_dots_sets(empty_dots):
-        if not valid_pos_set_component(nr_empty_dots, len(connected_dots_set)):
-            return False
-    return True
+    @staticmethod
+    def _is_valid_empty_dots(empty_dots):
+        nr_empty_dots = len(empty_dots)
+        for connected_dots_set in connected_dots_sets(empty_dots):
+            if not QuadrillionCSPAdapter._is_valid_nr_empty_connected_dots(nr_empty_dots,
+                                                                          len(connected_dots_set)):
+                return False
+        return True
+
+    @staticmethod
+    def _is_valid_nr_empty_connected_dots(nr_empty_dots, nr_empty_connected_dots):
+               # empty_connected_dots should have 5 dots
+        return ((nr_empty_dots % 5 == 0 and nr_empty_connected_dots % 5 == 0)
+               # empty_connected_dots should have 5 or 4 dots
+            or ((nr_empty_dots - 4) % 5 == 0 and nr_empty_connected_dots % 5 % 4 == 0)
+               # empty_connected_dots should have 5 or 3 dots
+            or ((nr_empty_dots - 3) % 5 == 0 and nr_empty_connected_dots % 5 % 3 == 0)
+               # empty_connected_dots should have 5, 4 or 3 dots
+            or ((nr_empty_dots - 7) % 5 == 0 and (nr_empty_connected_dots % 5 % 4 % 3 == 0
+                                                  or ((nr_empty_connected_dots - 7) >= 0
+                                                      and (nr_empty_connected_dots - 7) % 5 == 0))))
 
 
 def connected_dots_sets(dots_set):
@@ -84,28 +103,6 @@ def connected_dots_sets(dots_set):
         connected_dots = connected_dots_set_at(dot)
         yield connected_dots
         seen_dots |= connected_dots
-
-
-def valid_pos_set_component(nr_empty_dots, nr_empty_connected_dots):
-                # empty_connected_dots should have 5 dots
-    return not ((nr_empty_dots % 5 == 0 and not nr_empty_connected_dots % 5 == 0)
-                # empty_connected_dots should have 5 or 4 dots
-            or ((nr_empty_dots - 4) % 5 == 0 and not nr_empty_connected_dots % 5 % 4 == 0)
-                # empty_connected_dots should have 5 or 3 dots
-            or ((nr_empty_dots - 3) % 5 == 0 and not nr_empty_connected_dots % 5 % 3 == 0)
-                # empty_connected_dots should have 5, 4 or 3 dots
-            or ((nr_empty_dots - 7) % 5 == 0 and not (nr_empty_connected_dots % 5 % 4 % 3 == 0
-                                                      or ((nr_empty_connected_dots - 7) >= 0
-                                                          and (nr_empty_connected_dots - 7) % 5 == 0))))
-
-
-def valid_pos_set_new(nr_empty_connected_dots, variable_lengths):
-    variable_lengths = set(variable_lengths)
-    possible_dots_lengths = variable_lengths | {a + b for a in variable_lengths for b in variable_lengths
-                                                if a != b}
-    while 5 in variable_lengths and nr_empty_connected_dots not in possible_dots_lengths and nr_empty_connected_dots>0:
-        nr_empty_connected_dots -= 5
-    return nr_empty_connected_dots >= 0
 
 
 if __name__ == '__main__':
