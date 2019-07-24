@@ -15,7 +15,7 @@ class CSP:
         """
         pass
 
-    def set_current_assignments(self, assignments):
+    def set_current_assignments(self, assignments, domains):
         """
         fix the input assignment of variable
         :param assignments: a dictionary containing variable(s) and the corresponding
@@ -69,14 +69,14 @@ class CSPSolver:
         consistent with the input assignments.
         """
         new_domains = dict()
-        self.csp.set_current_assignments(assignments)
-        for var in set(domains.keys()) - set(assignments.keys()):
-            new_domains[var] = set()
-            for val in domains[var]:
-                if self.csp.is_consistent_assignment((var, val)):
-                    new_domains[var].add(val)
-            if not new_domains[var]:
-                return None
+        if self.csp.set_current_assignments(assignments, domains):
+            for var in set(domains.keys()) - set(assignments.keys()):
+                new_domains[var] = set()
+                for val in domains[var]:
+                    if self.csp.is_consistent_assignment((var, val)):
+                        new_domains[var].add(val)
+                if not new_domains[var]:
+                    return None
         return new_domains
 
     @staticmethod
@@ -93,18 +93,20 @@ class CSPSolver:
         :return: the first found solution or None if there is not any. The solution is
         returned as a dictionary containing variables and the corresponding values.
         """
-        var = self.select_unassigned_variable(assignments, domains)
-        if len(assignments) == len(self.vars)-1:
-            assignments[var] = domains[var].pop()
+        if len(assignments) == len(self.vars):
             return assignments
+        elif not domains:
+            return None
+        var = self.select_unassigned_variable(assignments, domains)
         self.iterations += 1  # search iterations counter
+        old_vars = set(assignments.keys())
         for val in domains[var]:
             assignments[var] = val
             new_domains = self.forward_check(assignments, domains)
-            if new_domains:
-                result = self.back_tracking_search(assignments, new_domains)
-                if result: return result
-            del assignments[var]
+            result = self.back_tracking_search(assignments, new_domains)
+            if result: return result
+            for new_var in set(assignments.keys()) - old_vars:
+                del assignments[new_var]
         return None
 
     def get_solution(self):

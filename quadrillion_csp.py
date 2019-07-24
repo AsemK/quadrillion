@@ -10,6 +10,7 @@ class QuadrillionCSPAdapter(CSP):
         self._variables = self._quadrillion.released_unplaced_shapes
         self._empty_grids_dots = self._quadrillion.released_empty_grids_dots
         self._domains = self._extract_domains()
+        self._solution = []
 
         self._quadrillion.pick(self._variables)
 
@@ -19,15 +20,16 @@ class QuadrillionCSPAdapter(CSP):
     def get_domains(self):
         return self._domains
 
-    def set_current_assignments(self, assignments):
-        self._current_empty_grids_dots = self._empty_grids_dots.copy()
+    def set_current_assignments(self, assignments, domains):
+        self._current_assignments_dots = set()
         for dots in assignments.values():
-            self._current_empty_grids_dots -= dots
+            self._current_assignments_dots |= dots
+        return self._is_valid_empty_dots(self._empty_grids_dots-self._current_assignments_dots)\
+               and self.is_small_dots_in_domain(assignments, domains)
 
     def is_consistent_assignment(self, assignment):
         shape, dots = assignment
-        return self._is_on_empty_dots(dots, self._current_empty_grids_dots) \
-               and self._is_valid_empty_dots(self._current_empty_grids_dots - dots)
+        return self._current_assignments_dots.isdisjoint(dots)
 
     def _extract_domains(self):
         domains = dict()
@@ -38,10 +40,14 @@ class QuadrillionCSPAdapter(CSP):
                 for loc in square_dots:
                     for config in variable.get_unique_configs_at(loc):
                         dots = frozenset(variable.configured(config))
-                        if self._is_on_empty_dots(dots, self._empty_grids_dots):
+                        if self._is_node_consistent(dots):
                             domain.add(dots)
                 domains[variable] = domain
         return domains
+
+    def _is_node_consistent(self, dots):
+        return self._is_on_empty_dots(dots, self._empty_grids_dots)\
+               and self._is_valid_empty_dots(self._empty_grids_dots - dots)
 
     @staticmethod
     def _get_smallest_square_over_dots(dots):
@@ -63,13 +69,34 @@ class QuadrillionCSPAdapter(CSP):
     def _is_on_empty_dots(dots, empty_dots):
         return dots <= empty_dots
 
-    @staticmethod
-    def _is_valid_empty_dots(empty_dots):
+    def is_small_dots_in_domain(self, assignments, domains):
+        if not self._connected_small_sets:
+            return True
+        else:
+            found_assignments = dict()
+            for connected_set in self._connected_small_sets:
+                target = frozenset(connected_set)
+                for var in set(domains.keys()) - set(assignments.keys()) - set(found_assignments.keys()):
+                    if target in domains[var]:
+                        found_assignments[var] = target
+                        break
+            if len(found_assignments) == len(self._connected_small_sets):
+                assignments.update(found_assignments)
+                for dots in found_assignments.values():
+                    self._current_assignments_dots |= dots
+                return True
+            else:
+                return False
+
+    def _is_valid_empty_dots(self, empty_dots):
+        self._connected_small_sets = []
         nr_empty_dots = len(empty_dots)
         for connected_dots_set in connected_dots_sets(empty_dots):
             if not QuadrillionCSPAdapter._is_valid_nr_empty_connected_dots(nr_empty_dots,
                                                                           len(connected_dots_set)):
                 return False
+            elif len(connected_dots_set) <= 5:
+                self._connected_small_sets.append(connected_dots_set)
         return True
 
     @staticmethod
