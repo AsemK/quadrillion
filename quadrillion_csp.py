@@ -1,35 +1,87 @@
 from csp import CSP, CSPSolver
-from quadrillion import Quadrillion
-from graphic_display import QuadrillionGraphicDisplay
+from dots_set import connected_dots_sets
+from quadrillion_exception import *
+import time
 
 
 class QuadrillionCSPAdapter(CSP):
     def __init__(self, quadrillion):
-        self._quadrillion = quadrillion
+        self.quadrillion = quadrillion
+        self._solution = dict()
+        self._csp_solver = CSPSolver()
 
-        self._variables = self._quadrillion.released_unplaced_shapes
-        self._empty_grids_dots = self._quadrillion.released_empty_grids_dots
-        self._domains = self._extract_domains()
-        self._solution = []
-
-        self._quadrillion.pick(self._variables)
-
-    def get_variables(self):
+    @property
+    def variables(self):
         return self._variables
 
-    def get_domains(self):
+    @property
+    def domains(self):
         return self._domains
 
-    def set_current_assignments(self, assignments, domains):
+    def register_current_assignments(self, assignments, domains):
         self._current_assignments_dots = set()
         for dots in assignments.values():
             self._current_assignments_dots |= dots
         return self._is_valid_empty_dots(self._empty_grids_dots-self._current_assignments_dots)\
-               and self.is_small_dots_in_domain(assignments, domains)
+               and self._is_small_dots_in_domain(assignments, domains)
 
     def is_consistent_assignment(self, assignment):
         shape, dots = assignment
         return self._current_assignments_dots.isdisjoint(dots)
+
+    def solve(self):
+        solution = self._get_solution()
+        for shape in self._variables:
+            shape.set_dots(solution[shape])
+        self.quadrillion.release()
+
+    def help(self):
+        solution = self._get_solution()
+        shape = set(solution.keys()).pop()
+        shape.set_dots(solution[shape])
+        self.quadrillion.release()
+
+    def _get_solution(self):
+        try:
+            self._variables = self.quadrillion.released_unplaced_shapes
+            self._empty_grids_dots = self.quadrillion.released_empty_grids_dots
+            self.quadrillion.pick(self._variables)
+            if self._is_new_solution_needed():
+                start_time = time.time()
+                self._domains = self._extract_domains()
+                solution = self._csp_solver(self)
+                print("--- %s seconds ---" % (time.time() - start_time))
+                print("--- %s iterations ---" % self._csp_solver.iterations)
+                if solution:
+                    self._cash_solution(solution)
+                    return solution
+                else:
+                    self.quadrillion.unpick()
+                    raise NoSolutionException('The current state of the game has no solution.')
+            else:
+                return self._adapt_solution()
+        except StateException:
+            raise StateException('Cannot solve while items are picked.')
+
+    def _is_new_solution_needed(self):
+        if self._solution:
+            for shape in self._variables:
+                if not self._is_on_empty_dots(self._solution[shape]):
+                    return True
+            return False
+        return True
+
+    def _cash_solution(self, solution):
+        self._solution = dict()
+        for shape in self.quadrillion.shapes:
+            self._solution[shape] = frozenset(shape)
+        self._solution.update(solution)
+
+    def _adapt_solution(self):
+        solution = dict()
+        for shape in self._variables:
+            solution[shape] = self._solution[shape]
+        return solution
 
     def _extract_domains(self):
         domains = dict()
@@ -40,36 +92,12 @@ class QuadrillionCSPAdapter(CSP):
                 for loc in square_dots:
                     for config in variable.get_unique_configs_at(loc):
                         dots = frozenset(variable.configured(config))
-                        if self._is_node_consistent(dots):
+                        if self._is_on_empty_dots(dots):
                             domain.add(dots)
                 domains[variable] = domain
         return domains
 
-    def _is_node_consistent(self, dots):
-        return self._is_on_empty_dots(dots, self._empty_grids_dots)\
-               and self._is_valid_empty_dots(self._empty_grids_dots - dots)
-
-    @staticmethod
-    def _get_smallest_square_over_dots(dots):
-        y = min(h for h, w in dots)
-        x = min(w for h, w in dots)
-        height = max(h for h, w in dots) + 1
-        width = max(w for h, w in dots) + 1
-        return {(h, w) for h in range(y, height) for w in range(x, width)}
-
-    def get_solution(self):
-        csp_solver = CSPSolver(self)
-        solution = csp_solver.get_solution()
-        self.iterations = csp_solver.iterations
-        for shape in self._variables:
-            shape.set_dots(solution[shape])
-        self._quadrillion.release()
-
-    @staticmethod
-    def _is_on_empty_dots(dots, empty_dots):
-        return dots <= empty_dots
-
-    def is_small_dots_in_domain(self, assignments, domains):
+    def _is_small_dots_in_domain(self, assignments, domains):
         if not self._connected_small_sets:
             return True
         else:
@@ -99,6 +127,17 @@ class QuadrillionCSPAdapter(CSP):
                 self._connected_small_sets.append(connected_dots_set)
         return True
 
+    def _is_on_empty_dots(self, dots):
+        return dots <= self._empty_grids_dots
+
+    @staticmethod
+    def _get_smallest_square_over_dots(dots):
+        y = min(h for h, w in dots)
+        x = min(w for h, w in dots)
+        height = max(h for h, w in dots) + 1
+        width = max(w for h, w in dots) + 1
+        return {(h, w) for h in range(y, height) for w in range(x, width)}
+
     @staticmethod
     def _is_valid_nr_empty_connected_dots(nr_empty_dots, nr_empty_connected_dots):
                # empty_connected_dots should have 5 dots
@@ -111,36 +150,3 @@ class QuadrillionCSPAdapter(CSP):
             or ((nr_empty_dots - 7) % 5 == 0 and (nr_empty_connected_dots % 5 % 4 % 3 == 0
                                                   or ((nr_empty_connected_dots - 7) >= 0
                                                       and (nr_empty_connected_dots - 7) % 5 == 0))))
-
-
-def connected_dots_sets(dots_set):
-    def connected_dots_set_at(dot):
-        connected_dots = {dot}
-        dots_queue =[dot]
-        while dots_queue:
-            y, x = dots_queue.pop()
-            successors = dots_set & ({(y+1, x), (y-1, x), (y, x+1), (y, x-1)} - connected_dots)
-            for dot in successors:
-                connected_dots.add(dot)
-                dots_queue.insert(0, dot)
-        return connected_dots
-    seen_dots = set()
-    for dot in dots_set:
-        if dot in seen_dots: continue
-        connected_dots = connected_dots_set_at(dot)
-        yield connected_dots
-        seen_dots |= connected_dots
-
-
-if __name__ == '__main__':
-    import time
-    start_time = time.time()
-
-    quadrillion = Quadrillion()
-    quadrillion_csp = QuadrillionCSPAdapter(quadrillion)
-    quadrillion_csp.get_solution()
-
-    print("--- %s seconds ---" % (time.time() - start_time))
-    print('--- %s iterations ---' % quadrillion_csp.iterations)
-
-    view = QuadrillionGraphicDisplay(quadrillion)

@@ -1,109 +1,161 @@
 import tkinter as tk
 from quadrillion_exception import *
-CELL_Len = 48
+CELL_Len = 32
 DOT_COLOR = '#999999'
 BG_COLOR = '#BBBBBB'
 
 
 class QuadrillionGraphicDisplay:
     def __init__(self, quadrillion_game):
-        self.parent = tk.Tk()
-        self.quadrillion = quadrillion_game
-        self.quadrillion.attach_view(self)
+        self.master = tk.Tk()
+        self._quadrillion = quadrillion_game
+        self._quadrillion.attach_view(self)
 
-        self.parent.resizable(0, 0)
-        self.parent.title('SmartGames Quadrillion')
+        self.master.resizable(0, 0)
+        self.master.title('SmartGames Quadrillion')
 
-        vertical_cells, horizontal_cells = self.quadrillion.dot_space_dim
-        self.canvas = tk.Canvas(self.parent, width=horizontal_cells*CELL_Len, height=vertical_cells*CELL_Len,
+        vertical_cells, horizontal_cells = self._quadrillion.dot_space_dim
+        self.canvas = tk.Canvas(self.master, width=horizontal_cells * CELL_Len, height=vertical_cells * CELL_Len,
                                 bg=BG_COLOR, highlightthickness=0)
-        self.canvas.grid(rowspan=int(vertical_cells/2), columnspan=int(horizontal_cells/2), padx=2, pady=2)
+        self.canvas.grid(padx=2, pady=2)
 
-        self.grid_decorator = GridGraphicDecoratorFlyweight(self.canvas)
-        self.shape_decorator = ShapeGraphicDecoratorFlyweight(self.canvas)
+        self._grid_decorator = GridGraphicDecoratorFlyweight(self.canvas)
+        self._shape_decorator = ShapeGraphicDecoratorFlyweight(self.canvas)
 
         self.update()
-        self.picked = None
+        self._picked = None
         self.canvas.bind("<Button-1>", self._on_cell_clicked)
         self.canvas.bind("<Key>", self._on_key_press)
 
-        tk.mainloop()
-
     def update(self, item=None):
         if item is None:
-            self._do_after_release()
-            for item in list(self.quadrillion.grids) + list(self.quadrillion.shapes):
+            for item in list(self._quadrillion.grids) + list(self._quadrillion.shapes):
                 self._decorate(item).draw()
         else:
             self._decorate(item).draw()
 
     def _on_cell_clicked(self, event):
-        if self.picked is None:
+        if self._picked is None:
              self._pick_at((event.x, event.y))
         else:
             if event.num == 1:
                 self._release()
             else:
-                self.quadrillion.unpick()
+                self._quadrillion.unpick()
             self._do_after_release()
 
     def _on_mouse_motion(self, event):
         current_cell = GraphicUtils.pos2cell(event.x, event.y)
-        self.picked.move_to(current_cell)
-        self.picked.draw()
+        self._picked.move_to(current_cell)
+        self._picked.draw()
 
     def _on_key_press(self, event):
         key = event.keysym
-        if key == 'r' or key == 'R':           self.quadrillion.reset()
-        elif self.picked:
-            if key == 'Left':                  self.picked.rotate(clockwise=False)
-            elif key == 'Right':               self.picked.rotate(clockwise=True)
-            elif key == 'Up' or key == 'Down': self.picked.flip()
-            elif key == 'w' or key == 'W':     self.picked.move((-1, 0))
-            elif key == 'a' or key == 'A':     self.picked.move((0, -1))
-            elif key == 's' or key == 'S':     self.picked.move((1, 0))
-            elif key == 'd' or key == 'D':     self.picked.move((0, 1))
+        if key == 'r' or key == 'R':           self._quadrillion.reset(); self._do_after_release()
+        elif self._picked:
+            if key == 'Left':                  self._picked.rotate(clockwise=False)
+            elif key == 'Right':               self._picked.rotate(clockwise=True)
+            elif key == 'Up' or key == 'Down': self._picked.flip()
+            elif key == 'w' or key == 'W':     self._picked.move((-1, 0))
+            elif key == 'a' or key == 'A':     self._picked.move((0, -1))
+            elif key == 's' or key == 'S':     self._picked.move((1, 0))
+            elif key == 'd' or key == 'D':     self._picked.move((0, 1))
             elif key == 'Return':              self._release(); self._do_after_release()
-            elif key == 'Escape':              self.quadrillion.unpick();  self._do_after_release()
+            elif key == 'Escape':              self._quadrillion.unpick();  self._do_after_release()
             else: return
-            if self.picked:
-                self.picked.draw()
+            if self._picked:
+                self._picked.draw()
 
     def _pick_at(self, pos):
         try:
             cell = GraphicUtils.pos2cell(*pos)
-            picked = self.quadrillion.get_at(cell)
-            self.quadrillion.pick([picked])
+            picked = self._quadrillion.get_at(cell)
+            self._quadrillion.pick([picked])
             self._do_after_pick(picked, cell)
         except (NoItemException, IllegalPickException):
             pass
 
     def _release(self):
         try:
-            self.quadrillion.release()
+            self._quadrillion.release()
         except IllegalReleaseException:
-            self.quadrillion.unpick()
+            self._quadrillion.unpick()
 
     def _do_after_pick(self, picked, cell):
-        self.picked = self._decorate(picked)
-        self.picked.hook(cell)
-        self.canvas.tag_raise(self.picked.tag)
+        self._picked = self._decorate(picked)
+        self._picked.hook(cell)
+        self.canvas.tag_raise(self._picked.tag)
         self.canvas.focus_set()
         self.canvas.bind("<Button-3>", self._on_cell_clicked)
         self.canvas.bind("<Motion>", self._on_mouse_motion)
 
     def _do_after_release(self):
-        self.picked = None
+        self._picked = None
         self.canvas.unbind("<Button-3>")
         self.canvas.unbind("<Motion>")
 
     def _decorate(self, item):
-        if item in self.quadrillion.shapes:
-            self.shape_decorator.set_dot_set(item)
-            return self.shape_decorator
-        elif item in self.quadrillion.grids:
-            self.grid_decorator.set_dot_set(item)
-            return self.grid_decorator
+        if item in self._quadrillion.shapes:
+            self._shape_decorator.set_dot_set(item)
+            return self._shape_decorator
+        elif item in self._quadrillion.grids:
+            self._grid_decorator.set_dot_set(item)
+            return self._grid_decorator
+
+
+class QuadrillionSolverGraphicDisplay(QuadrillionGraphicDisplay):
+    def __init__(self, quadrillion_csp_adapter):
+        self._quadrillion_solver = quadrillion_csp_adapter
+        super().__init__(self._quadrillion_solver.quadrillion)
+
+        control_bar = tk.Frame(self.master, height=40)
+        self.solve_button = tk.Button(control_bar, text='Find Solution!', relief='groove',
+                                      command=lambda: self._try(self._quadrillion_solver.solve))
+        self.help_button  = tk.Button(control_bar, text='Help me!', relief='groove',
+                                      command=lambda: self._try(self._quadrillion_solver.help))
+        self.reset_button = tk.Button(control_bar, text='Reset', relief='groove',
+                                      command=self._quadrillion.reset)
+        self.text_area = tk.Label(control_bar, anchor='w', text='')
+
+        for item in self.master.grid_slaves():
+            item.grid_forget()
+
+        control_bar.pack(side='top', fill='x', expand=True)
+        self.canvas.pack(side='bottom', padx=2, pady=2)
+
+        self.solve_button.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
+        self.help_button.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
+        self.reset_button.grid(row=0, column=2, rowspan=2, sticky="nsw", padx=2, pady=2)
+        self.text_area.grid(row=0, column=1, rowspan=2, sticky="ew", padx=2, pady=2)
+        control_bar.columnconfigure(1, weight=1)
+
+    def _try(self, solver_function):
+        if self._quadrillion.is_won():
+            self._show_text('The game is already solved.')
+            return
+        try:
+            self._show_text('')
+            solver_function()
+        except QuadrillionException as e:
+            self._show_text(str(e))
+
+    def _show_text(self, text):
+        self.text_area.config(text=text)
+
+    def _on_cell_clicked(self, event):
+        self._show_text('')
+        super()._on_cell_clicked(event)
+
+    def _on_mouse_motion(self, event):
+        self._show_text('')
+        super()._on_mouse_motion(event)
+
+    def _on_key_press(self, event):
+        self._show_text('')
+        key = event.keysym
+        if   key == 'f' or key == 'F': self._try(self._quadrillion_solver.solve)
+        elif key == 'h' or key == 'H': self._try(self._quadrillion_solver.help)
+        else: super()._on_key_press(event)
 
 
 class GraphicDecoratorFlyweight:

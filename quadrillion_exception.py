@@ -20,3 +20,6 @@ class IllegalPickException(QuadrillionException):
 
 class InitialConfigurationsException(IllegalReleaseException):
     pass
+
+class NoSolutionException(QuadrillionException):
+    pass

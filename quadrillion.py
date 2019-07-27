@@ -1,5 +1,4 @@
 from dots_set import DotsSetFactory
-from graphic_display import QuadrillionGraphicDisplay
 from quadrillion_data import DOT_SPACE_DIM
 from quadrillion_exception import *
 

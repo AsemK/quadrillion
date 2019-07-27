@@ -194,3 +194,22 @@ class DotsSetFactory:
     def create_grids(self):
         return frozenset(TwoSidedDotsGrid(invalid_black, invalid_wight, initial_config=Config(*config))
                          for (invalid_black, invalid_wight), config in GRIDS.values())
+
+
+def connected_dots_sets(dots_set):
+    def connected_dots_set_at(dot):
+        connected_dots = {dot}
+        dots_queue =[dot]
+        while dots_queue:
+            y, x = dots_queue.pop()
+            successors = dots_set & ({(y+1, x), (y-1, x), (y, x+1), (y, x-1)} - connected_dots)
+            for dot in successors:
+                connected_dots.add(dot)
+                dots_queue.insert(0, dot)
+        return connected_dots
+    seen_dots = set()
+    for dot in dots_set:
+        if dot in seen_dots: continue
+        connected_dots = connected_dots_set_at(dot)
+        yield connected_dots
+        seen_dots |= connected_dots
