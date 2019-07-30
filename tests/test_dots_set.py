@@ -1,5 +1,5 @@
 import pytest
-from dots_set import DotsSet, TwoSidedDotsGrid, DotsSetFactory, Config
+from dots_set import DotsSet, DotsGrid, DotsSetFactory, Config
 
 """
 shapes:
@@ -29,9 +29,9 @@ grids:
 O . . O        O O O O        O O O O        O O O O
 O O O O rot -> O O O . rot -> O O O O rot -> . O O O
 O O O O        O O O .        O O O O        . O O O
-O O O O        O O O O        O . . O        O O O O < valid dot
+O O O O        O O O O        O . . O        O O O O < open dot
  flip                           ^
-  |                             invalid dot
+  |                             closed dot
   v
 O O O .        O O O O        O O O O        . O O O
 O O O O rot -> O O O O rot -> O . O O rot -> O O . O
@@ -39,10 +39,10 @@ O O . O        O . O O        O O O O        O O O O
 O O O O        O O O .        . O O O        O O O O
 """
 GRIDS_HEIGHT, GRIDS_WIDTH = 4, 4
-GRIDS_INVALID_DOTS = [{(0, 1), (0, 2)}, {(1, 3), (2, 3)}, {(3, 2), (3, 1)}, {(2, 0), (1, 0)},
-                      {(0, 3), (2, 2)}, {(3, 3), (2, 1)}, {(3, 0), (1, 1)}, {(1, 2), (0, 0)}]
-GRIDS_VALID_DOTS = [{(y, x) for y in range(GRIDS_HEIGHT) for x in range(GRIDS_WIDTH)} - invalid
-                    for invalid in GRIDS_INVALID_DOTS]
+GRIDS_CLOSED_DOTS = [{(0, 1), (0, 2)}, {(1, 3), (2, 3)}, {(3, 2), (3, 1)}, {(2, 0), (1, 0)},
+                     {(0, 3), (2, 2)}, {(3, 3), (2, 1)}, {(3, 0), (1, 1)}, {(1, 2), (0, 0)}]
+GRIDS_OPEN_DOTS = [{(y, x) for y in range(GRIDS_HEIGHT) for x in range(GRIDS_WIDTH)} - closed
+                   for closed in GRIDS_CLOSED_DOTS]
 
 
 class TestDotsSetInstantiation:
@@ -68,28 +68,28 @@ class TestDotsSetInstantiation:
 class TestTwoSidedDotsGridInstantiation:
     def test_instantiation_with_non_int_dots_fails(self):
         with pytest.raises(TypeError):
-            TwoSidedDotsGrid({(2, 3), (3, 1.5)}, {(1, 2), (0, 0)}, 4, 4)
+            DotsGrid({(2, 3), (3, 1.5)}, {(1, 2), (0, 0)}, 4, 4)
 
     def test_instantiation_with_non_tuples_fails(self):
         with pytest.raises(TypeError):
-            TwoSidedDotsGrid({(2, 3), (3, 1)}, {[1, 2], (0, 0)}, 4, 4)
+            DotsGrid({(2, 3), (3, 1)}, {[1, 2], (0, 0)}, 4, 4)
 
     def test_instantiation_with_negative_dots_fails(self):
         with pytest.raises(TypeError):
-            TwoSidedDotsGrid({(-2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
+            DotsGrid({(-2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
 
     def test_instantiation_with_dots_outside_size_fails(self):
         with pytest.raises(TypeError):
-            TwoSidedDotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 3, 3)
+            DotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 3, 3)
 
     def test_instantiation_with_dots_works(self):
-        dots_set = TwoSidedDotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
+        dots_set = DotsGrid({(2, 3), (3, 1)}, {(1, 2), (0, 0)}, 4, 4)
         color1 = dots_set.color
         assert len(dots_set) == 4*4
-        assert dots_set.invalid_dots == {(2, 3), (3, 1)}
+        assert dots_set.closed_dots == {(2, 3), (3, 1)}
         dots_set.flip()
         color2 = dots_set.color
-        assert dots_set.invalid_dots == {(1, 2), (0, 0)}
+        assert dots_set.closed_dots == {(1, 2), (0, 0)}
         assert color1 != color2
 
 
@@ -102,8 +102,8 @@ class TestMovement:
             request.cls.dots_set = DotsSet(SHAPES[0])
             request.cls.assert_equals_dots_set = request.cls.assert_equals_shape
         elif request.param == 'grid':
-            request.cls.dots_set = TwoSidedDotsGrid(GRIDS_INVALID_DOTS[0], GRIDS_INVALID_DOTS[4],
-                                                    GRIDS_HEIGHT, GRIDS_WIDTH)
+            request.cls.dots_set = DotsGrid(GRIDS_CLOSED_DOTS[0], GRIDS_CLOSED_DOTS[4],
+                                            GRIDS_HEIGHT, GRIDS_WIDTH)
             request.cls.assert_equals_dots_set = request.cls.assert_equals_grid
 
     def teardown(self):
@@ -115,13 +115,13 @@ class TestMovement:
         assert self.dots_set == displaced_shape
 
     def assert_equals_grid(self, grid_index, displacement=(0, 0)):
-        displaced_invalid = {(y + displacement[0], x + displacement[1])
-                             for y, x in GRIDS_INVALID_DOTS[grid_index]}
-        displaced_valid = {(y + displacement[0], x + displacement[1])
-                           for y, x in GRIDS_VALID_DOTS[grid_index]}
-        assert self.dots_set.invalid_dots == displaced_invalid
-        assert self.dots_set.valid_dots == displaced_valid
-        assert self.dots_set == self.dots_set.invalid_dots | self.dots_set.valid_dots
+        displaced_closed = {(y + displacement[0], x + displacement[1])
+                             for y, x in GRIDS_CLOSED_DOTS[grid_index]}
+        displaced_open = {(y + displacement[0], x + displacement[1])
+                           for y, x in GRIDS_OPEN_DOTS[grid_index]}
+        assert self.dots_set.closed_dots == displaced_closed
+        assert self.dots_set.open_dots == displaced_open
+        assert self.dots_set == self.dots_set.closed_dots | self.dots_set.open_dots
 
     def do_movements(self, *movements):
         for move in movements:
@@ -189,13 +189,13 @@ class TestConfig:
             return set(shape)
 
         def take_grid_snapshot(grid):
-            return set(grid.valid_dots), set(grid.invalid_dots)
+            return set(grid.open_dots), set(grid.closed_dots)
 
         def shape_equals_snapshot(shape, snapshot):
             return shape == snapshot
 
         def grid_equals_snapshot(grid, snapshot):
-            return (grid.valid_dots, grid.invalid_dots) == snapshot
+            return (grid.open_dots, grid.closed_dots) == snapshot
 
         if request.param == 'shape':
             request.cls.unconfigured_set = DotsSet(SHAPES[0])
@@ -205,17 +205,17 @@ class TestConfig:
             request.cls.take_dots_equals_snapshot = staticmethod(shape_equals_snapshot)
 
         elif request.param == 'grid':
-            request.cls.unconfigured_set = TwoSidedDotsGrid(GRIDS_INVALID_DOTS[0],
-                                                            GRIDS_INVALID_DOTS[4],
-                                                            GRIDS_HEIGHT, GRIDS_WIDTH)
-            request.cls.configured_set1 = TwoSidedDotsGrid(GRIDS_INVALID_DOTS[0],
-                                                           GRIDS_INVALID_DOTS[4],
-                                                           GRIDS_HEIGHT, GRIDS_WIDTH,
-                                                           request.cls.config1)
-            request.cls.configured_set2 = TwoSidedDotsGrid(GRIDS_INVALID_DOTS[0],
-                                                           GRIDS_INVALID_DOTS[4],
-                                                           GRIDS_HEIGHT, GRIDS_WIDTH,
-                                                           request.cls.config2)
+            request.cls.unconfigured_set = DotsGrid(GRIDS_CLOSED_DOTS[0],
+                                                    GRIDS_CLOSED_DOTS[4],
+                                                    GRIDS_HEIGHT, GRIDS_WIDTH)
+            request.cls.configured_set1 = DotsGrid(GRIDS_CLOSED_DOTS[0],
+                                                   GRIDS_CLOSED_DOTS[4],
+                                                   GRIDS_HEIGHT, GRIDS_WIDTH,
+                                                   request.cls.config1)
+            request.cls.configured_set2 = DotsGrid(GRIDS_CLOSED_DOTS[0],
+                                                   GRIDS_CLOSED_DOTS[4],
+                                                   GRIDS_HEIGHT, GRIDS_WIDTH,
+                                                   request.cls.config2)
             request.cls.take_dots_set_snapshot = staticmethod(take_grid_snapshot)
             request.cls.take_dots_equals_snapshot = staticmethod(grid_equals_snapshot)
 
@@ -305,7 +305,7 @@ class TestDotsSetFactory:
         grids = dots_set_factory.create_grids()
         assert type(grids) == frozenset
         for grid in grids:
-            assert type(grid) == TwoSidedDotsGrid
+            assert type(grid) == DotsGrid
 
 
 if __name__ == '__main__':

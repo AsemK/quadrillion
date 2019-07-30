@@ -57,6 +57,10 @@ class DotsSet(Set):
         self.config = self.config._replace(location=(y+dy, x+dx))
 
     def get_unique_configs_at(self, location):
+        """
+        returns the configs that are unique for dots at a certain location
+        these are equal or less than all possible configs
+        """
         if not hasattr(self, 'unique_configs'):
             dots_sets = []
             self.unique_configs = set()
@@ -70,6 +74,9 @@ class DotsSet(Set):
         return {config._replace(location=location) for config in self.unique_configs}
 
     def set_dots(self, dots):
+        """
+        converts dots into a config and then sets the dots_set to this config
+        """
         location = min(y for y, x in dots), min(x for y, x in dots)
         for config in self.get_unique_configs_at(location):
             if self.configured(config) == dots:
@@ -83,6 +90,10 @@ class DotsSet(Set):
 
     @config.setter
     def config(self, config):
+        """
+        This is the only method that moves the dots_set.
+        All method moving the dots set goes through this.
+        """
         self._config = config._replace(flips=config.flips % 2, rotations=config.rotations % 4)
         self._dots_set = frozenset(self.configured(self.config))
 
@@ -130,21 +141,25 @@ class DotsSet(Set):
         return {(self._width - 1 - x, y) for y, x in dots}
 
 
-class TwoSidedDotsGrid(DotsSet):
+class DotsGrid(DotsSet):
+    """
+    These are DotsSets that have two different sides, one has white dots with closed black dots
+    and the other has black dots with closed white dots.
+    """
     _white_side_color = '#FFFFFF'
     _black_side_color = '#373535'
 
-    def __init__(self, invalid_black, invalid_white, height=4, width=4,
+    def __init__(self, closed_black_dots, closed_white_dots, height=4, width=4,
                  initial_config=Config(flips=0, rotations=0, location=(0, 0))):
-        if not self._are_valid_dots(set(invalid_black) | set(invalid_white), height, width):
+        if not self._are_valid_dots(set(closed_black_dots) | set(closed_white_dots), height, width):
             raise TypeError("dots must be of the form (int y, int x) " 
                             "where 0 <= y < height and 0 <= x < width")
 
         self._height = height
         self._width = width
 
-        self._initial_black_dots = frozenset(invalid_black)
-        self._initial_white_dots = frozenset(invalid_white)
+        self._initial_closed_black_dots = frozenset(closed_black_dots)
+        self._initial_closed_white_dots = frozenset(closed_white_dots)
 
         self._config = Config(flips=0, rotations=0, location=(0, 0))
         self._initial_config = initial_config
@@ -153,18 +168,18 @@ class TwoSidedDotsGrid(DotsSet):
     @property
     def color(self):
         if self.config.flips:
-            valid_color, invalid_color = self._black_side_color, self._white_side_color
+            open_dots_color, closed_dots_color = self._black_side_color, self._white_side_color
         else:
-            valid_color, invalid_color = self._white_side_color, self._black_side_color
-        return valid_color, invalid_color
+            open_dots_color, closed_dots_color = self._white_side_color, self._black_side_color
+        return open_dots_color, closed_dots_color
 
     @property
-    def valid_dots(self):
-        return self._get_valid_dots_at(self.config)
+    def open_dots(self):
+        return self._get_open_dots_at(self.config)
 
     @property
-    def invalid_dots(self):
-        return self._get_invalid_dots_at(self.config)
+    def closed_dots(self):
+        return self._get_closed_dots_at(self.config)
 
     def _are_valid_dots(self, dots, height, width):
         return super()._are_valid_dots(dots) and all(y < height and x < width for y, x in dots)
@@ -172,18 +187,18 @@ class TwoSidedDotsGrid(DotsSet):
     def configured(self, config):
         return self._get_all_dots_at(config)
 
-    def _get_valid_dots_at(self, config):
-        return self._get_all_dots_at(config) - self._get_invalid_dots_at(config)
+    def _get_open_dots_at(self, config):
+        return self._get_all_dots_at(config) - self._get_closed_dots_at(config)
 
     def _get_all_dots_at(self, config):
         y0, x0 = config.location
         return {(y, x) for y in range(y0, y0 + self._height) for x in range(x0, x0 + self._width)}
 
-    def _get_invalid_dots_at(self, config):
+    def _get_closed_dots_at(self, config):
         return super().configured(config)
 
     def _initial_dots_flipped(self, times):
-        return self._initial_white_dots if times % 2 else self._initial_black_dots
+        return self._initial_closed_white_dots if times % 2 else self._initial_closed_black_dots
 
 
 class DotsSetFactory:
@@ -192,11 +207,15 @@ class DotsSetFactory:
                          for dots, config, color in SHAPES.values())
 
     def create_grids(self):
-        return frozenset(TwoSidedDotsGrid(invalid_black, invalid_wight, initial_config=Config(*config))
+        return frozenset(DotsGrid(invalid_black, invalid_wight, initial_config=Config(*config))
                          for (invalid_black, invalid_wight), config in GRIDS.values())
 
 
 def connected_dots_sets(dots_set):
+    """
+    a utility generator that yields sets of connected dots in a dots_set.
+    Dots can be connected horizontally and vertically but not diagonally.
+    """
     def connected_dots_set_at(dot):
         connected_dots = {dot}
         dots_queue =[dot]

@@ -23,25 +23,35 @@ class QuadrillionCSPAdapter(CSP):
         for dots in assignments.values():
             self._current_assignments_dots |= dots
         return self._is_valid_empty_dots(self._empty_grids_dots-self._current_assignments_dots)\
-               and self._is_small_dots_in_domain(assignments, domains)
+               and self._is_small_empty_dots_in_domain(assignments, domains)
 
     def is_consistent_assignment(self, assignment):
         shape, dots = assignment
         return self._current_assignments_dots.isdisjoint(dots)
 
     def solve(self):
+        """
+        Applies a solution (if found) to quadrillion game
+        """
         solution = self._get_solution()
         for shape in self._variables:
             shape.set_dots(solution[shape])
         self.quadrillion.release()
 
     def help(self):
+        """
+        If a solution is found, one shape is moved to its configuration according to the solution.
+        """
         solution = self._get_solution()
         shape = set(solution.keys()).pop()
         shape.set_dots(solution[shape])
         self.quadrillion.release()
 
     def _get_solution(self):
+        """
+        Uses the csp_solver to get a new solution if needed, otherwise adapts the cashed solution
+        :return: a solution dictionary containing shapes and their corresponding dots.
+        """
         try:
             self._variables = self.quadrillion.released_unplaced_shapes
             self._empty_grids_dots = self.quadrillion.released_empty_grids_dots
@@ -72,12 +82,18 @@ class QuadrillionCSPAdapter(CSP):
         return True
 
     def _cash_solution(self, solution):
+        """
+        saves a snapshot of the dots of all shapes with the dots of shapes in solution.
+        """
         self._solution = dict()
         for shape in self.quadrillion.shapes:
             self._solution[shape] = frozenset(shape)
         self._solution.update(solution)
 
     def _adapt_solution(self):
+        """
+        :returns: the subset of the cashed solution corresponding to the current variables
+        """
         solution = dict()
         for shape in self._variables:
             solution[shape] = self._solution[shape]
@@ -97,7 +113,29 @@ class QuadrillionCSPAdapter(CSP):
                 domains[variable] = domain
         return domains
 
-    def _is_small_dots_in_domain(self, assignments, domains):
+    def _is_valid_empty_dots(self, empty_dots):
+        """
+        checks if the connected regions of the empty dots can be filled by shapes in the self._variables
+        based on the number of dots in these connected components and in the shapes.
+        Also, cashes the small connected components (5 or less dots) to check if they can be filled by a
+        valid value in the domain of a variable.
+        """
+        self._connected_small_sets = []
+        nr_empty_dots = len(empty_dots)
+        for connected_dots_set in connected_dots_sets(empty_dots):
+            if not QuadrillionCSPAdapter._is_valid_nr_empty_connected_dots(nr_empty_dots,
+                                                                          len(connected_dots_set)):
+                return False
+            elif len(connected_dots_set) <= 5:
+                self._connected_small_sets.append(connected_dots_set)
+        return True
+
+    def _is_small_empty_dots_in_domain(self, assignments, domains):
+        """
+        checks if small connected components of the empty dots in the domain of some variable.
+        If so, the assignment of that variable is inferred to be the connected component of empty dots.
+        otherwise, it is known that there is no valid solution.
+        """
         if not self._connected_small_sets:
             return True
         else:
@@ -116,22 +154,15 @@ class QuadrillionCSPAdapter(CSP):
             else:
                 return False
 
-    def _is_valid_empty_dots(self, empty_dots):
-        self._connected_small_sets = []
-        nr_empty_dots = len(empty_dots)
-        for connected_dots_set in connected_dots_sets(empty_dots):
-            if not QuadrillionCSPAdapter._is_valid_nr_empty_connected_dots(nr_empty_dots,
-                                                                          len(connected_dots_set)):
-                return False
-            elif len(connected_dots_set) <= 5:
-                self._connected_small_sets.append(connected_dots_set)
-        return True
-
     def _is_on_empty_dots(self, dots):
         return dots <= self._empty_grids_dots
 
     @staticmethod
     def _get_smallest_square_over_dots(dots):
+        """
+        To guarantee that dots in the domain cover the complete empty dot in all possible configuration,
+        the dots of the smallest square over empty dots is used.
+        """
         y = min(h for h, w in dots)
         x = min(w for h, w in dots)
         height = max(h for h, w in dots) + 1
@@ -140,6 +171,10 @@ class QuadrillionCSPAdapter(CSP):
 
     @staticmethod
     def _is_valid_nr_empty_connected_dots(nr_empty_dots, nr_empty_connected_dots):
+        """
+        Determines if a connected component in the empty dots can be filled by a shape in the variables
+        considering only the number of dots.
+        """
                # empty_connected_dots should have 5 dots
         return ((nr_empty_dots % 5 == 0 and nr_empty_connected_dots % 5 == 0)
                # empty_connected_dots should have 5 or 4 dots

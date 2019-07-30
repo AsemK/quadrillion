@@ -34,6 +34,10 @@ class QuadrillionGraphicDisplay:
         else:
             self._decorate(item).draw()
 
+    def _reset(self):
+        self._quadrillion.reset()
+        self._do_after_release()
+
     def _on_cell_clicked(self, event):
         if self._picked is None:
              self._pick_at((event.x, event.y))
@@ -51,7 +55,7 @@ class QuadrillionGraphicDisplay:
 
     def _on_key_press(self, event):
         key = event.keysym
-        if key == 'r' or key == 'R':           self._quadrillion.reset(); self._do_after_release()
+        if key == 'r' or key == 'R':           self._reset()
         elif self._picked:
             if key == 'Left':                  self._picked.rotate(clockwise=False)
             elif key == 'Right':               self._picked.rotate(clockwise=True)
@@ -114,7 +118,7 @@ class QuadrillionSolverGraphicDisplay(QuadrillionGraphicDisplay):
         self.help_button  = tk.Button(control_bar, text='Help me!', relief='groove',
                                       command=lambda: self._try(self._quadrillion_solver.help))
         self.reset_button = tk.Button(control_bar, text='Reset', relief='groove',
-                                      command=self._quadrillion.reset)
+                                      command=self._reset)
         self.text_area = tk.Label(control_bar, anchor='w', text='')
 
         for item in self.master.grid_slaves():
@@ -141,6 +145,10 @@ class QuadrillionSolverGraphicDisplay(QuadrillionGraphicDisplay):
 
     def _show_text(self, text):
         self.text_area.config(text=text)
+
+    def _reset(self):
+        self._show_text('')
+        super()._reset()
 
     def _on_cell_clicked(self, event):
         self._show_text('')
@@ -189,12 +197,12 @@ class GridGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
         self._canvas.delete(self.tag)
         start_cell = self.config.location
         end_cell = (start_cell[0] + 3, start_cell[1] + 3)
-        valid_color, invalid_color = self.color
-        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=valid_color, tags=self.tag)
-        for dot in self.valid_dots:
+        open_color, closed_color = self.color
+        GraphicUtils.rectangle_over_cells(self._canvas, start_cell, end_cell, fill=open_color, tags=self.tag)
+        for dot in self.open_dots:
             GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=DOT_COLOR, tags=self.tag)
-        for dot in self.invalid_dots:
-            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=invalid_color, tags=self.tag)
+        for dot in self.closed_dots:
+            GraphicUtils.circle_in_cell(self._canvas, dot, 0.7, fill=closed_color, tags=self.tag)
 
 
 class ShapeGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):

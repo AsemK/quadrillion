@@ -12,6 +12,9 @@ class Quadrillion:
         self.reset()
 
     def reset(self):
+        """
+        returns the game to its initial state.
+        """
         self._grid_strategy = GridQuadrillionStrategy(self.dot_space_dim, self.grids)
         self._shape_strategy = ShapeQuadrillionStrategy(self.dot_space_dim, self.shapes)
         self._grid_strategy.reset(self._shape_strategy)
@@ -21,6 +24,10 @@ class Quadrillion:
         self._notify()
 
     def pick(self, items):
+        """
+        Must be called before any item can be moved to check if it is allowed to move it.
+        :param items: an iterable of dots_sets
+        """
         if not self._is_picked:
             try:
                 shapes, grids = self._separate_shapes_grids(items)
@@ -35,6 +42,9 @@ class Quadrillion:
             raise StateException('Cannot pick before releasing already picked items!')
 
     def release(self):
+        """
+        Must be called after picked items are moved to their desired position.
+        """
         if self._is_picked:
             picked_grids = self._grid_strategy.picked_items
             try:
@@ -49,6 +59,9 @@ class Quadrillion:
             raise StateException('Cannot release while no picked items!')
 
     def unpick(self):
+        """
+        Can be called after some items are picked to return them to their position before picking them.
+        """
         if self._is_picked:
             try:
                 self._restore_items_momentos()
@@ -60,6 +73,9 @@ class Quadrillion:
             raise StateException('Cannot unpick while no picked items!')
 
     def get_at(self, dot):
+        """
+        :returns the visible dots_set at the input dot in quadrillion board.
+        """
         for strategy in self._shape_strategy, self._grid_strategy:
             item = strategy.get_at(dot)
             if item:
@@ -78,7 +94,7 @@ class Quadrillion:
 
     @property
     def released_empty_grids_dots(self):
-        return self._grid_strategy.released_valid_dots - self._shape_strategy.released_dots
+        return self._grid_strategy.released_open_dots - self._shape_strategy.released_dots
 
     @property
     def released_shapes(self):
@@ -86,7 +102,7 @@ class Quadrillion:
 
     @property
     def released_unplaced_shapes(self):
-        return self._shape_strategy.released_unplaced_shapes
+        return self._shape_strategy.released_unplaced_shapes  # released shapes outside grids
 
     def _notify(self, item=None):
         for view in self._views:
@@ -180,20 +196,21 @@ class GridQuadrillionStrategy(QuadrillionStrategy):
                and not any(self._other_strategy.is_overlapping_released_items(grid) for grid in self.picked_items)
 
     def are_pickable(self, grids):
-        return set(grids) <= self.picked_items or not any(self._other_strategy.is_overlapping_released_items(grid) for grid in grids)
+        return set(grids) <= self.picked_items\
+               or not any(self._other_strategy.is_overlapping_released_items(grid) for grid in grids)
 
-    def is_on_released_valid_dots(self, item):
-        return all(dot in self.released_valid_dots for dot in item)
+    def is_on_released_open_dots(self, item):
+        return all(dot in self.released_open_dots for dot in item)
 
     @property
-    def released_valid_dots(self):
-        return {dot for grid in self.released_items for dot in grid.valid_dots}
+    def released_open_dots(self):
+        return {dot for grid in self.released_items for dot in grid.open_dots}
 
 
 class ShapeQuadrillionStrategy(QuadrillionStrategy):
     def is_release_possible(self):
         return QuadrillionStrategy.is_release_possible(self)\
-               and all(self._other_strategy.is_on_released_valid_dots(shape)
+               and all(self._other_strategy.is_on_released_open_dots(shape)
                        or not self._other_strategy.is_overlapping_released_items(shape)
                        for shape in self.picked_items)
 

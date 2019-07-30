@@ -1,5 +1,5 @@
 import pytest
-from dots_set import DotsSet, TwoSidedDotsGrid, Config
+from dots_set import DotsSet, DotsGrid, Config
 from quadrillion_exception import *
 from quadrillion import Quadrillion
 
@@ -34,7 +34,7 @@ def test_get_at_grid_returns_grid(quadrillion_game):
     dot = (7, 6)
     grid = quadrillion_game.get_at(dot)
     assert dot in grid
-    assert type(grid) == TwoSidedDotsGrid
+    assert type(grid) == DotsGrid
 
 
 def test_get_at_shape_over_grid_returns_shape(quadrillion_game):
@@ -129,7 +129,7 @@ def test_release_shape_over_shapes_fails(quadrillion_game, sorted_shapes):
         quadrillion_game.release()
 
 
-def test_release_shape_over_invalid_grid_dots_fails(quadrillion_game, sorted_shapes):
+def test_release_shape_over_closed_grids_dots_fails(quadrillion_game, sorted_shapes):
     quadrillion_game.pick([sorted_shapes[4]])
     sorted_shapes[4].move((4, 0))
     with pytest.raises(IllegalReleaseException):
@@ -202,7 +202,7 @@ def test_unpick_fails_if_momentos_are_not_captured_correctly(quadrillion_game, s
         quadrillion_game.unpick()
 
 
-def test_reset_fails_if_initial_configs_are_not_valid(quadrillion_game, sorted_shapes):
+def test_reset_fails_if_initial_configs_are_inconsistent(quadrillion_game, sorted_shapes):
     sorted_shapes[0]._initial_config = Config(0, 3, (10, 1))
     with pytest.raises(InitialConfigurationsException):
         quadrillion_game.reset()
