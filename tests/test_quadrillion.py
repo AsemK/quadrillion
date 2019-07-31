@@ -210,8 +210,15 @@ def test_reset_fails_if_initial_configs_are_inconsistent(quadrillion_game, sorte
 
 def test_is_won(quadrillion_game, sorted_shapes):
     assert not quadrillion_game.is_won()
-    #TODO: test when a game is won
 
+    sorted_solution_configs = [(1, 0, (5, 5)), (0, 2, (1, 4)), (1, 2, (3, 5)), (0, 3, (6, 4)),
+                               (0, 3, (3, 9)), (1, 0, (6, 8)), (0, 3, (2, 7)), (1, 0, (7, 5)),
+                               (1, 3, (5, 10)), (0, 1, (1, 10)), (0, 1, (1, 7)), (0, 0, (3, 4))]
+
+    for shape, config in zip(sorted_shapes, sorted_solution_configs):
+        shape.config = Config(*config)
+
+    assert quadrillion_game.is_won()
 
 if __name__ == '__main__':
     pytest.main()

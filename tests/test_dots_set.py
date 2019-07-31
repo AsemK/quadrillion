@@ -1,5 +1,5 @@
 import pytest
-from dots_set import DotsSet, DotsGrid, DotsSetFactory, Config
+from dots_set import DotsSet, DotsGrid, DotsSetFactory, Config, connected_dots_sets
 
 """
 shapes:
@@ -62,6 +62,38 @@ class TestDotsSetInstantiation:
         dots_set = DotsSet({(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)})
         color = dots_set.color
         assert all(dot in dots_set for dot in {(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)})
+
+    def test_get_unique_configes_with_six_configs(self):
+        dots_set = DotsSet(SHAPES[2])
+        configs = dots_set.get_unique_configs_at((0, 0))
+
+        assert len(configs) == 8
+        assert all(dots_set.configured(config) in SHAPES for config in configs)
+
+    def test_get_unique_configes_with_two_configs(self):
+        dots_set = DotsSet({(0, 0), (0, 1)})
+        configs = dots_set.get_unique_configs_at((0, 0))
+
+        assert len(configs) == 2
+        assert all(dots_set.configured(config) in [{(0, 0), (0, 1)}, {(0, 0), (1, 0)}]
+                   for config in configs)
+
+    def test_set_dots_passes(self):
+        dots_set = DotsSet({(0, 0), (0, 1)})
+        dots_configured = dots_set.configured(Config(1, 1, (2, 3)))
+        assert dots_set != dots_configured
+
+        dots_set.set_dots(dots_configured)
+        assert dots_configured == dots_configured
+
+    def test_set_dots_fails(self):
+        dots_set = DotsSet({(0, 0), (0, 1)})
+        dots_before = set(dots_set)
+
+        with pytest.raises(ValueError):
+            dots_set.set_dots({(0, 0), (1, 1)})
+        assert dots_set == dots_before
+
 
 
 
@@ -288,6 +320,29 @@ class TestConfig:
         a = hash(self.unconfigured_set)
         self.unconfigured_set.config = self.configured_set1.config
         assert a == hash(self.unconfigured_set)
+
+
+class TestConnectedDotsSets:
+    def test_one_conected_dots_set(self):
+        connected_sets = list(connected_dots_sets(SHAPES[1]))
+
+        assert len(connected_sets) == 1
+        assert SHAPES[1] in connected_sets
+
+    def test_multiple_connected_dots_set(self):
+        """
+        O O O O  <- connected_set1
+        . . . O
+        O O O .
+        O O O O  <- connected_set2
+        """
+        connected_set1 = {(0, 0), (0, 1), (0, 2), (0, 3), (1, 3)}
+        connected_set2 = {(2, 0), (2, 1), (2, 2), (3, 0), (3, 1), (3, 2), (3, 3)}
+        connected_sets = list(connected_dots_sets(connected_set1 | connected_set2))
+
+        assert len(connected_sets) == 2
+        assert connected_set1 in connected_sets
+        assert connected_set2 in connected_sets
 
 
 class TestDotsSetFactory:

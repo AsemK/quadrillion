@@ -97,16 +97,16 @@ class DotsSet(Set):
         self._config = config._replace(flips=config.flips % 2, rotations=config.rotations % 4)
         self._dots_set = frozenset(self.configured(self.config))
 
-    def _are_valid_dots(self, dots):
-        return all(len(dot) == 2 and isinstance(dot, tuple)
-                   and all(isinstance(axis, int) and axis >= 0 for axis in dot)
-                   for dot in dots)
-
     def configured(self, config):
         flipped_dots = self._initial_dots_flipped(config.flips)
         rotated_dots = self._rotated_clockwise(flipped_dots, config.rotations)
         moved_dots = self._moved(rotated_dots, config.location)
         return moved_dots
+
+    def _are_valid_dots(self, dots):
+        return all(len(dot) == 2 and isinstance(dot, tuple)
+                   and all(isinstance(axis, int) and axis >= 0 for axis in dot)
+                   for dot in dots)
 
     def _initial_dots_flipped(self, times):
         if times % 2:
