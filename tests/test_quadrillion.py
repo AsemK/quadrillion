@@ -220,5 +220,6 @@ def test_is_won(quadrillion_game, sorted_shapes):
 
     assert quadrillion_game.is_won()
 
+
 if __name__ == '__main__':
     pytest.main()

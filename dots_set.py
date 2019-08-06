@@ -1,3 +1,4 @@
+import pickle
 from collections import namedtuple
 from collections.abc import Set
 from quadrillion_data import GRIDS, SHAPES
@@ -202,13 +203,48 @@ class DotsGrid(DotsSet):
 
 
 class DotsSetFactory:
-    def create_shapes(self):
-        return frozenset(DotsSet(dots, Config(*config), color)
-                         for dots, config, color in SHAPES.values())
+    def __init__(self, saved_configs=None):
+        self._create_items(saved_configs)
 
-    def create_grids(self):
-        return frozenset(DotsGrid(invalid_black, invalid_wight, initial_config=Config(*config))
-                         for (invalid_black, invalid_wight), config in GRIDS.values())
+    def save_configs(self, file_name):
+        configs = dict()
+        for item_name, item in self._shapes.items() | self._grids.items():
+            configs[item_name] = tuple(item.config)
+        with open(file_name + '.pickle', 'wb') as f:
+            pickle.dump(configs, f)
+
+    def load_config(self, file_name):
+        with open(file_name + '.pickle', 'rb') as f:
+            saved_configs = pickle.load(f)
+            self._create_items(saved_configs)
+
+    @property
+    def shapes(self):
+        return frozenset(self._shapes.values())
+
+    @property
+    def grids(self):
+        return frozenset(self._grids.values())
+
+    def _create_items(self, saved_configs):
+        saved_configs = saved_configs if saved_configs else dict()
+        self._create_shapes(saved_configs)
+        self._create_grids(saved_configs)
+
+    def _create_shapes(self, saved_configs):
+        self._shapes = dict()
+        for shape_name, (dots, config, color) in SHAPES.items():
+            config = self._get_item_config(shape_name, config, saved_configs)
+            self._shapes[shape_name] = DotsSet(dots, Config(*config), color)
+
+    def _create_grids(self, saved_configs):
+        self._grids = dict()
+        for grid_name, ((invalid_black, invalid_wight), config) in GRIDS.items():
+            config = self._get_item_config(grid_name, config, saved_configs)
+            self._grids[grid_name] = DotsGrid(invalid_black, invalid_wight, initial_config=Config(*config))
+
+    def _get_item_config(self, item_name, default_config, saved_configs):
+        return default_config if item_name not in saved_configs else saved_configs[item_name]
 
 
 def connected_dots_sets(dots_set):

@@ -1,3 +1,4 @@
+import traceback
 import tkinter as tk
 from quadrillion_exception import *
 CELL_Len = 32
@@ -29,34 +30,34 @@ class QuadrillionGraphicDisplay:
 
     def update(self, item=None):
         if item is None:
+            self.canvas.delete('all')
             for item in list(self._quadrillion.grids) + list(self._quadrillion.shapes):
                 self._decorate(item).draw()
         else:
             self._decorate(item).draw()
 
-    def _reset(self):
-        self._quadrillion.reset()
-        self._do_after_release()
-
     def _on_cell_clicked(self, event):
-        if self._picked is None:
-             self._pick_at((event.x, event.y))
+        if not self._quadrillion._is_picked:
+            if event.num == 1:  # if mouse left button
+                self._pick_at((event.x, event.y))
         else:
             if event.num == 1:
                 self._release()
             else:
                 self._quadrillion.unpick()
-            self._do_after_release()
 
     def _on_mouse_motion(self, event):
-        current_cell = GraphicUtils.pos2cell(event.x, event.y)
-        self._picked.move_to(current_cell)
-        self._picked.draw()
+        if self._quadrillion._is_picked and self._picked:
+            current_cell = GraphicUtils.pos2cell(event.x, event.y)
+            self._picked.move_to(current_cell)
+            self._picked.draw()
+        else:
+            self._do_after_release()
 
     def _on_key_press(self, event):
         key = event.keysym
-        if key == 'r' or key == 'R':           self._reset()
-        elif self._picked:
+        if key == 'r' or key == 'R':           self._quadrillion.reset()
+        elif self._quadrillion._is_picked and self._picked:
             if key == 'Left':                  self._picked.rotate(clockwise=False)
             elif key == 'Right':               self._picked.rotate(clockwise=True)
             elif key == 'Up' or key == 'Down': self._picked.flip()
@@ -64,8 +65,8 @@ class QuadrillionGraphicDisplay:
             elif key == 'a' or key == 'A':     self._picked.move((0, -1))
             elif key == 's' or key == 'S':     self._picked.move((1, 0))
             elif key == 'd' or key == 'D':     self._picked.move((0, 1))
-            elif key == 'Return':              self._release(); self._do_after_release()
-            elif key == 'Escape':              self._quadrillion.unpick();  self._do_after_release()
+            elif key == 'Return':              self._release()
+            elif key == 'Escape':              self._quadrillion.unpick()
             else: return
             if self._picked:
                 self._picked.draw()
@@ -111,14 +112,19 @@ class QuadrillionSolverGraphicDisplay(QuadrillionGraphicDisplay):
     def __init__(self, quadrillion_csp_adapter):
         self._quadrillion_solver = quadrillion_csp_adapter
         super().__init__(self._quadrillion_solver.quadrillion)
+        self.master.report_callback_exception = self.report_callback_exception
 
         control_bar = tk.Frame(self.master, height=40)
         self.solve_button = tk.Button(control_bar, text='Find Solution!', relief='groove',
-                                      command=lambda: self._try(self._quadrillion_solver.solve))
+                                      command=self._quadrillion_solver.solve)
         self.help_button  = tk.Button(control_bar, text='Help me!', relief='groove',
-                                      command=lambda: self._try(self._quadrillion_solver.help))
+                                      command=self._quadrillion_solver.help)
         self.reset_button = tk.Button(control_bar, text='Reset', relief='groove',
-                                      command=self._reset)
+                                      command=self._quadrillion.reset)
+        self.save_button = tk.Button(control_bar, text='Save', relief='groove',
+                                      command=self._quadrillion.save_game)
+        self.load_button = tk.Button(control_bar, text='Load', relief='groove',
+                                      command=self._quadrillion.load_game)
         self.text_area = tk.Label(control_bar, anchor='w', text='')
 
         for item in self.master.grid_slaves():
@@ -129,41 +135,30 @@ class QuadrillionSolverGraphicDisplay(QuadrillionGraphicDisplay):
 
         self.solve_button.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
         self.help_button.grid(row=1, column=0, sticky="nsew", padx=2, pady=2)
-        self.reset_button.grid(row=0, column=2, rowspan=2, sticky="nsw", padx=2, pady=2)
+        self.save_button.grid(row=0, column=2, sticky="nsew", padx=2, pady=2)
+        self.load_button.grid(row=1, column=2, sticky="nsew", padx=2, pady=2)
+        self.reset_button.grid(row=0, column=3, rowspan=2, sticky="nsew", padx=2, pady=2)
         self.text_area.grid(row=0, column=1, rowspan=2, sticky="ew", padx=2, pady=2)
         control_bar.columnconfigure(1, weight=1)
 
-    def _try(self, solver_function):
-        if self._quadrillion.is_won():
-            self._show_text('The game is already solved.')
-            return
-        try:
-            self._show_text('')
-            solver_function()
-        except QuadrillionException as e:
-            self._show_text(str(e))
+        # remove printed messages after clicks or presses
+        self.master.bind("<Button>", lambda event: self._show_text(''))
+        self.master.bind("<Key>", lambda event: self._show_text(''))
 
-    def _show_text(self, text):
-        self.text_area.config(text=text)
-
-    def _reset(self):
-        self._show_text('')
-        super()._reset()
-
-    def _on_cell_clicked(self, event):
-        self._show_text('')
-        super()._on_cell_clicked(event)
-
-    def _on_mouse_motion(self, event):
-        self._show_text('')
-        super()._on_mouse_motion(event)
+    def report_callback_exception(self, exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, QuadrillionException):
+            self._show_text(exc_value) # print quadrillion exceptions messages in the GUI
+        else:
+            traceback.print_exception(exc_type, exc_value, exc_traceback)
 
     def _on_key_press(self, event):
-        self._show_text('')
         key = event.keysym
-        if   key == 'f' or key == 'F': self._try(self._quadrillion_solver.solve)
-        elif key == 'h' or key == 'H': self._try(self._quadrillion_solver.help)
+        if   key == 'f' or key == 'F': self._quadrillion_solver.solve()
+        elif key == 'h' or key == 'H': self._quadrillion_solver.help()
         else: super()._on_key_press(event)
+
+    def _show_text(self, text=''):
+        self.text_area.config(text=text)
 
 
 class GraphicDecoratorFlyweight:

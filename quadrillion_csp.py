@@ -52,6 +52,8 @@ class QuadrillionCSPAdapter(CSP):
         Uses the csp_solver to get a new solution if needed, otherwise adapts the cashed solution
         :return: a solution dictionary containing shapes and their corresponding dots.
         """
+        if self.quadrillion.is_won():
+            raise QuadrillionException("The game is already solved!")
         try:
             self._variables = self.quadrillion.released_unplaced_shapes
             self._empty_grids_dots = self.quadrillion.released_empty_grids_dots
@@ -76,7 +78,7 @@ class QuadrillionCSPAdapter(CSP):
     def _is_new_solution_needed(self):
         if self._solution:
             for shape in self._variables:
-                if not self._is_on_empty_dots(self._solution[shape]):
+                if shape not in self._solution or not self._is_on_empty_dots(self._solution[shape]):
                     return True
             return False
         return True

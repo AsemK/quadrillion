@@ -6,8 +6,7 @@ from quadrillion_exception import *
 class Quadrillion:
     def __init__(self, dot_space_dim=DOT_SPACE_DIM, dots_sets_factory=DotsSetFactory()):
         self.dot_space_dim = dot_space_dim
-        self.grids = dots_sets_factory.create_grids()
-        self.shapes = dots_sets_factory.create_shapes()
+        self.dots_sets_factory = dots_sets_factory
         self._views = []
         self.reset()
 
@@ -15,6 +14,8 @@ class Quadrillion:
         """
         returns the game to its initial state.
         """
+        self.grids = self.dots_sets_factory.grids
+        self.shapes = self.dots_sets_factory.shapes
         self._grid_strategy = GridQuadrillionStrategy(self.dot_space_dim, self.grids)
         self._shape_strategy = ShapeQuadrillionStrategy(self.dot_space_dim, self.shapes)
         self._grid_strategy.reset(self._shape_strategy)
@@ -87,6 +88,16 @@ class Quadrillion:
 
     def attach_view(self, view):
         self._views.append(view)
+
+    def save_game(self):
+        self.dots_sets_factory.save_configs('last_saved')
+
+    def load_game(self):
+        try:
+            self.dots_sets_factory.load_config('last_saved')
+            self.reset()
+        except FileNotFoundError:
+            raise QuadrillionException('Game was not saved before!')
 
     @property
     def released_grids(self):

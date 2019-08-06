@@ -351,13 +351,13 @@ class TestDotsSetFactory:
         return DotsSetFactory()
 
     def test_create_shapes(self, dots_set_factory):
-        shapes = dots_set_factory.create_shapes()
+        shapes = dots_set_factory.shapes
         assert type(shapes) == frozenset
         for shape in shapes:
             assert type(shape) == DotsSet
 
     def test_create_grids(self, dots_set_factory):
-        grids = dots_set_factory.create_grids()
+        grids = dots_set_factory.grids
         assert type(grids) == frozenset
         for grid in grids:
             assert type(grid) == DotsGrid
