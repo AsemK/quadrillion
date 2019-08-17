@@ -13,6 +13,7 @@ class DotsSet(Set):
         self._height = max(pos[0] for pos in self._dots_set) + 1
         self._width = max(pos[1] for pos in self._dots_set) + 1
         self._color = color
+        self._hash = hash(self._initial_dots_set)
 
         self._config = Config(flips=0, rotations=0, location=(0, 0))
         self._initial_config = initial_config
@@ -33,7 +34,13 @@ class DotsSet(Set):
         return len(self._dots_set)
 
     def __hash__(self):
-        return id(self)
+        return self._hash
+
+    def __eq__(self, other):
+        if type(other) == type(self):
+            return self._initial_dots_set == other._initial_dots_set
+        else:
+            return Set.__eq__(self, other)
 
     def __repr__(self):
         return type(self).__name__ + '({' + ", ".join({str(dot) for dot in self}) + '})'
@@ -162,9 +169,20 @@ class DotsGrid(DotsSet):
         self._initial_closed_black_dots = frozenset(closed_black_dots)
         self._initial_closed_white_dots = frozenset(closed_white_dots)
 
+        self._hash = hash(self._initial_closed_white_dots & self._initial_closed_black_dots)
         self._config = Config(flips=0, rotations=0, location=(0, 0))
         self._initial_config = initial_config
         self.reset()
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        if type(other) == type(self):
+            return self._initial_closed_black_dots == other._initial_closed_black_dots\
+               and self._initial_closed_white_dots == other._initial_closed_white_dots
+        else:
+            return Set.__eq__(self, other)
 
     @property
     def color(self):

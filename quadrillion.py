@@ -4,9 +4,9 @@ from quadrillion_exception import *
 
 
 class Quadrillion:
-    def __init__(self, dot_space_dim=DOT_SPACE_DIM, dots_sets_factory=DotsSetFactory()):
+    def __init__(self, dot_space_dim=DOT_SPACE_DIM, dots_sets_factory=None):
         self.dot_space_dim = dot_space_dim
-        self.dots_sets_factory = dots_sets_factory
+        self.dots_sets_factory = dots_sets_factory if dots_sets_factory else DotsSetFactory()
         self._views = []
         self.reset()
 
@@ -98,6 +98,10 @@ class Quadrillion:
             self.reset()
         except FileNotFoundError:
             raise QuadrillionException('Game was not saved before!')
+
+    @property
+    def is_picked(self):  # are there picked items in the game
+        return self._is_picked
 
     @property
     def released_grids(self):

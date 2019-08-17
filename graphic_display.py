@@ -37,7 +37,7 @@ class QuadrillionGraphicDisplay:
             self._decorate(item).draw()
 
     def _on_cell_clicked(self, event):
-        if not self._quadrillion._is_picked:
+        if not self._quadrillion.is_picked:
             if event.num == 1:  # if mouse left button
                 self._pick_at((event.x, event.y))
         else:
@@ -47,7 +47,7 @@ class QuadrillionGraphicDisplay:
                 self._quadrillion.unpick()
 
     def _on_mouse_motion(self, event):
-        if self._quadrillion._is_picked and self._picked:
+        if self._quadrillion.is_picked and self._picked:
             current_cell = GraphicUtils.pos2cell(event.x, event.y)
             self._picked.move_to(current_cell)
             self._picked.draw()
@@ -57,7 +57,7 @@ class QuadrillionGraphicDisplay:
     def _on_key_press(self, event):
         key = event.keysym
         if key == 'r' or key == 'R':           self._quadrillion.reset()
-        elif self._quadrillion._is_picked and self._picked:
+        elif self._quadrillion.is_picked and self._picked:
             if key == 'Left':                  self._picked.rotate(clockwise=False)
             elif key == 'Right':               self._picked.rotate(clockwise=True)
             elif key == 'Up' or key == 'Down': self._picked.flip()
