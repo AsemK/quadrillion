@@ -78,7 +78,7 @@ class QuadrillionCSPAdapter(CSP):
     def _is_new_solution_needed(self):
         if self._solution:
             for shape in self._variables:
-                if shape not in self._solution or not self._is_on_empty_dots(self._solution[shape]):
+                if not self._is_on_empty_dots(self._solution[shape]):
                     return True
             return False
         return True

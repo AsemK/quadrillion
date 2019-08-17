@@ -208,6 +208,32 @@ def test_reset_fails_if_initial_configs_are_inconsistent(quadrillion_game, sorte
         quadrillion_game.reset()
 
 
+def test_save_load(quadrillion_game, sorted_shapes, sorted_grids):
+    shape1 = sorted_shapes[2]
+    shape2 = sorted_shapes[10]
+    grid1 = sorted_grids[0]
+    grid2 = sorted_grids[3]
+    grid1.config = Config(1, 0, (5, 8))
+    grid2.config = Config(1, 0, (1, 4))
+    shape1.move((-8, 3))
+    shape2.move((-8, -3))
+
+    quadrillion_game.save_game()
+    shapes_dots1 = {frozenset(shape) for shape in quadrillion_game.shapes}
+    grids_open_dots1 = {frozenset(grid.open_dots) for grid in quadrillion_game.grids}
+    grids_closed_dots1 = {frozenset(grid.closed_dots) for grid in quadrillion_game.grids}
+
+    quadrillion_game.reset()
+    assert shapes_dots1 != {frozenset(shape) for shape in quadrillion_game.shapes}
+    assert grids_open_dots1 != {frozenset(grid.open_dots) for grid in quadrillion_game.grids}
+    assert grids_closed_dots1 != {frozenset(grid.closed_dots) for grid in quadrillion_game.grids}
+
+    quadrillion_game.load_game()
+    assert shapes_dots1 == {frozenset(shape) for shape in quadrillion_game.shapes}
+    assert grids_open_dots1 == {frozenset(grid.open_dots) for grid in quadrillion_game.grids}
+    assert grids_closed_dots1 == {frozenset(grid.closed_dots) for grid in quadrillion_game.grids}
+
+
 def test_is_won(quadrillion_game, sorted_shapes):
     assert not quadrillion_game.is_won()
 

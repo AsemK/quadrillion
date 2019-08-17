@@ -89,15 +89,15 @@ class Quadrillion:
     def attach_view(self, view):
         self._views.append(view)
 
-    def save_game(self):
-        self.dots_sets_factory.save_configs('last_saved')
+    def save_game(self, file_name='last_saved'):
+        self.dots_sets_factory.save_configs(file_name)
 
-    def load_game(self):
+    def load_game(self, file_name='last_saved'):
         try:
-            self.dots_sets_factory.load_config('last_saved')
+            self.dots_sets_factory.load_config(file_name)
             self.reset()
         except FileNotFoundError:
-            raise QuadrillionException('Game was not saved before!')
+            raise QuadrillionException('Cannot find file %s' % file_name)
 
     @property
     def is_picked(self):  # are there picked items in the game

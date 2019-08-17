@@ -1,7 +1,8 @@
 import pickle
+import pathlib
 from collections import namedtuple
 from collections.abc import Set
-from quadrillion_data import GRIDS, SHAPES
+from quadrillion_data import GRIDS, SHAPES, SAVE_DIRECTORY
 Config = namedtuple('Config', ['flips', 'rotations', 'location'])
 
 
@@ -228,11 +229,14 @@ class DotsSetFactory:
         configs = dict()
         for item_name, item in self._shapes.items() | self._grids.items():
             configs[item_name] = tuple(item.config)
-        with open(file_name + '.pickle', 'wb') as f:
+        path = pathlib.Path(__file__).parent / SAVE_DIRECTORY / (file_name + '.pickle')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open(mode='wb') as f:
             pickle.dump(configs, f)
 
     def load_config(self, file_name):
-        with open(file_name + '.pickle', 'rb') as f:
+        path = pathlib.Path(__file__).parent / SAVE_DIRECTORY / (file_name + '.pickle')
+        with path.open(mode='rb') as f:
             saved_configs = pickle.load(f)
             self._create_items(saved_configs)
 
