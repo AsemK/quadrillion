@@ -1,7 +1,7 @@
+import time
 from csp import CSP, CSPSolver
 from dots_set import connected_dots_sets
 from quadrillion_exception import *
-import time
 
 
 class QuadrillionCSPAdapter(CSP):
@@ -53,7 +53,7 @@ class QuadrillionCSPAdapter(CSP):
         :return: a solution dictionary containing shapes and their corresponding dots.
         """
         if self.quadrillion.is_won():
-            raise QuadrillionException("The game is already solved!")
+            raise StateException("The game is already solved!")
         try:
             self._variables = self.quadrillion.released_unplaced_shapes
             self._empty_grids_dots = self.quadrillion.released_empty_grids_dots
@@ -63,7 +63,6 @@ class QuadrillionCSPAdapter(CSP):
                 self._domains = self._extract_domains()
                 solution = self._csp_solver(self)
                 print("--- %s seconds ---" % (time.time() - start_time))
-                print("--- %s iterations ---" % self._csp_solver.iterations)
                 if solution:
                     self._cash_solution(solution)
                     return solution

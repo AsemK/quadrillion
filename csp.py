@@ -54,9 +54,6 @@ class CSPSolver:
     An implementation of the backtracking search algorithm as described in
     the book "AI, a Modern Approach", ed. 3, ch. 6.
     """
-    def __init__(self):
-        self.select_unassigned_variable = self.get_unassigned_variable_with_minimum_remaining_values
-
     def __call__(self, csp):
         """
         :param csp: a constraint satisfaction problem object that provides the function
@@ -64,7 +61,6 @@ class CSPSolver:
         :returns the first found solution or None if there is not any. The solution is
         returned as a dictionary containing variables and the corresponding values.
         """
-        self.iterations = 0  # reset iterations counter
         self.csp = csp
         self.variables = csp.variables
         self.domains = csp.domains
@@ -83,7 +79,6 @@ class CSPSolver:
         elif not domains:
             return None
         var = self.select_unassigned_variable(assignments, domains)
-        self.iterations += 1  # search iterations counter
         old_vars = set(assignments.keys())
         for val in domains[var]:
             assignments[var] = val
@@ -115,12 +110,9 @@ class CSPSolver:
         return None
 
     @staticmethod
-    def get_unassigned_variable_with_minimum_remaining_values(assignments, domains):
+    def select_unassigned_variable(assignments, domains):
         """
         Selects the next variable to be assigned by the minimum remaining values heuristic
         :return: the variable with the minimum remaining values
         """
         return min(set(domains.keys()) - set(assignments.keys()), key=lambda var: len(domains[var]))
-
-    def get_search_iterations(self):
-        return self.iterations
