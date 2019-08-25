@@ -10,6 +10,24 @@ class QuadrillionCSPAdapter(CSP):
         self._solution = dict()
         self._csp_solver = CSPSolver()
 
+    def solve(self):
+        """
+        Applies a solution (if found) to quadrillion game
+        """
+        solution = self._get_solution()
+        for shape in self._variables:
+            shape.set_dots(solution[shape])
+        self.quadrillion.release()
+
+    def help(self):
+        """
+        If a solution is found, one shape is moved to its configuration according to the solution.
+        """
+        solution = self._get_solution()
+        shape = set(solution.keys()).pop()
+        shape.set_dots(solution[shape])
+        self.quadrillion.release()
+
     @property
     def variables(self):
         return self._variables
@@ -28,24 +46,6 @@ class QuadrillionCSPAdapter(CSP):
     def is_consistent_assignment(self, assignment):
         shape, dots = assignment
         return self._current_assignments_dots.isdisjoint(dots)
-
-    def solve(self):
-        """
-        Applies a solution (if found) to quadrillion game
-        """
-        solution = self._get_solution()
-        for shape in self._variables:
-            shape.set_dots(solution[shape])
-        self.quadrillion.release()
-
-    def help(self):
-        """
-        If a solution is found, one shape is moved to its configuration according to the solution.
-        """
-        solution = self._get_solution()
-        shape = set(solution.keys()).pop()
-        shape.set_dots(solution[shape])
-        self.quadrillion.release()
 
     def _get_solution(self):
         """
@@ -109,7 +109,7 @@ class QuadrillionCSPAdapter(CSP):
                 for loc in square_dots:
                     for config in variable.get_unique_configs_at(loc):
                         dots = frozenset(variable.configured(config))
-                        if self._is_on_empty_dots(dots):
+                        if self._is_on_empty_dots(dots) and self._is_valid_empty_dots(self._empty_grids_dots-dots):
                             domain.add(dots)
                 domains[variable] = domain
         return domains
