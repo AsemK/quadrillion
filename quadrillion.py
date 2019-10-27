@@ -86,7 +86,7 @@ class Quadrillion:
     def is_won(self):
         return not self._is_picked and len(self.released_empty_grids_dots) == 0
 
-    def attach_view(self, view):
+    def subscribe(self, view):
         self._views.append(view)
 
     def save_game(self, file_name='last_saved'):
@@ -119,9 +119,9 @@ class Quadrillion:
     def released_unplaced_shapes(self):
         return self._shape_strategy.released_unplaced_shapes  # released shapes outside grids
 
-    def _notify(self, item=None):
+    def _notify(self):
         for view in self._views:
-            view.update(item)
+            view.update()
 
     def _separate_shapes_grids(self, items):
         items = set(items)

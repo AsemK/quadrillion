@@ -25,7 +25,7 @@ class CSP(ABC):
     @abstractmethod
     def register_current_assignments(self, assignments, domains):
         """
-        register the input assignments and infers (force arc consistency) on
+        register the input assignments and infers (force arc consistency on)
         other unassigned variables in domains. As a results, new inferred assignments
         might be added to the input assignments.
         :param assignments: a dictionary containing variable(s) and the corresponding

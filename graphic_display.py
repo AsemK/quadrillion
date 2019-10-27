@@ -10,7 +10,7 @@ class QuadrillionGraphicDisplay:
     def __init__(self, quadrillion_game):
         self.master = tk.Tk()
         self._quadrillion = quadrillion_game
-        self._quadrillion.attach_view(self)
+        self._quadrillion.subscribe(self)
 
         self.master.resizable(0, 0)
         self.master.title('SmartGames Quadrillion')
@@ -28,12 +28,9 @@ class QuadrillionGraphicDisplay:
         self.canvas.bind("<Button-1>", self._on_cell_clicked)
         self.canvas.bind("<Key>", self._on_key_press)
 
-    def update(self, item=None):
-        if item is None:
-            self.canvas.delete('all')
-            for item in list(self._quadrillion.grids) + list(self._quadrillion.shapes):
-                self._decorate(item).draw()
-        else:
+    def update(self):
+        self.canvas.delete('all')
+        for item in list(self._quadrillion.grids) + list(self._quadrillion.shapes):
             self._decorate(item).draw()
 
     def _on_cell_clicked(self, event):
@@ -87,8 +84,7 @@ class QuadrillionGraphicDisplay:
             self._quadrillion.unpick()
 
     def _do_after_pick(self, picked, cell):
-        self._picked = self._decorate(picked)
-        self._picked.hook(cell)
+        self._picked = self._decorate(picked, cell)
         self.canvas.tag_raise(self._picked.tag)
         self.canvas.focus_set()
         self.canvas.bind("<Button-3>", self._on_cell_clicked)
@@ -99,12 +95,12 @@ class QuadrillionGraphicDisplay:
         self.canvas.unbind("<Button-3>")
         self.canvas.unbind("<Motion>")
 
-    def _decorate(self, item):
+    def _decorate(self, item, cell=(0, 0)):
         if item in self._quadrillion.shapes:
-            self._shape_decorator.set_dot_set(item)
+            self._shape_decorator.attach(item, cell)
             return self._shape_decorator
         elif item in self._quadrillion.grids:
-            self._grid_decorator.set_dot_set(item)
+            self._grid_decorator.attach(item, cell)
             return self._grid_decorator
 
 
@@ -164,27 +160,26 @@ class QuadrillionSolverGraphicDisplay(QuadrillionGraphicDisplay):
 class GraphicDecoratorFlyweight:
     def __init__(self, canvas):
         self._canvas = canvas
-        self._dots_set = None
+        self._item = None
 
-    def set_dot_set(self, dot_set):
-        self._dots_set = dot_set
+    def attach(self, item, cell=(0, 0)):
+        self._item = item
+        self._hook_loc = cell
 
     def __getattr__(self, item):
-        return getattr(self._dots_set, item)
+        """Call item for any operation not defined in this decorator"""
+        return getattr(self._item, item)
 
     @property
     def tag(self):
-        return str(id(self._dots_set)) + 't'
+        return str(id(self._item)) + 't'
 
     def draw(self):
         pass
 
-    def hook(self, cell):
-        self.hook_loc = cell
-
     def move_to(self, cell):
-        self.move((cell[0] - self.hook_loc[0], cell[1] - self.hook_loc[1]))
-        self.hook(cell)
+        self.move((cell[0] - self._hook_loc[0], cell[1] - self._hook_loc[1]))
+        self._hook_loc = cell
 
 
 class GridGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
@@ -203,7 +198,7 @@ class GridGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
 class ShapeGraphicDecoratorFlyweight(GraphicDecoratorFlyweight):
     def draw(self):
         self._canvas.delete(self.tag)
-        for dot in self._dots_set:
+        for dot in self._item:
             GraphicUtils.circle_in_cell(self._canvas, dot, 0.9, fill=self.color, tags=self.tag)
 
 
